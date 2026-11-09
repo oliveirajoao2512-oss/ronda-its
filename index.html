@@ -240,6 +240,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
           <label class="f">Máquina<input id="reMaq" placeholder="ex.: MC-1C"></label>
         </div>
         <label class="f">Motivo / observação<input id="reObs" placeholder="ex.: IT perdida no posto"></label>
+        <button type="button" class="btn sigbtn" id="reSig">Coletar assinatura do solicitante</button>
         <button class="btn primary" type="submit" id="reSave">Registrar reimpressão</button>
       </form>
       <div class="panel stack">
@@ -683,7 +684,7 @@ function reportHtml(st){
   h+=h2("Team leaders")+tbl(["#","Team leader","Zona e turno","PNs","% conforme","IT incorreta","Op. não treinados"],st.tlE.map((o,i)=>[i+1,`<b>${esc(o.n)}</b>`,esc([...o.zt].join(", ")),o.tot,pct(o.tot-o.nc,o.tot)+"%",o.it?red(o.it):0,o.nt?red(o.nt):0]));
   h+=h2(`Operadores não treinados (${st.nt.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Operador"],[...st.nt].sort(ntSort).map(({o,r})=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),red(esc(o.nome||"Não informado"))]));
   h+=h2(`ITs incorretas (${st.itBad.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Motivo"],[...st.itBad].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))]));
-  if(st.reimp.length)h+=h2(`Reimpressões (${st.reimp.length})`)+tbl(["Data","PN","Solicitante","Zona / máquina","Ocorrência"],st.reimp.map(x=>[fmtD(x.date),esc(x.pn),esc(x.solicitante),esc((zoneById(x.zona)?.name||"–")+(x.maq?" · "+x.maq:"")),x.reincidencia?red("Reincidência "+x.ocorrencia+"ª"):"1ª"]));
+  if(st.reimp.length)h+=h2(`Reimpressões (${st.reimp.length})`)+tbl(["Data","PN","Solicitante","Assinou","Zona / máquina","Ocorrência"],st.reimp.map(x=>[fmtD(x.date),esc(x.pn),esc(x.solicitante),x.sid?"Sim":"Não",esc((zoneById(x.zona)?.name||"–")+(x.maq?" · "+x.maq:"")),x.reincidencia?red("Reincidência "+x.ocorrencia+"ª"):"1ª"]));
   h+=`<p style="font-size:11px;color:#5d6863;margin-top:18px">Gerado pelo sistema Ronda de ITs em ${fmtDT(Date.now())}.</p></div>`;
   return h;
 }
@@ -758,7 +759,7 @@ $("#cClear").addEventListener("click",()=>{$("#cFrom").value="";$("#cTo").value=
 function reimpHist(pn){const k=pnKey(pn);return Object.values(S.reimp).filter(x=>pnKey(x.pn)===k).sort((a,b)=>b.ts-a.ts)}
 function lookupPn(pn){const k=pnKey(pn);for(const d of progDates()){const it=S.prog[Object.keys(S.prog).find(id=>S.prog[id].date===d)].items.find(i=>pnKey(i.pn)===k);if(it)return it}return null}
 function renderReCheck(){
-  const pn=$("#rePn").value;const box=$("#reCheck");if(!pn.trim()){box.innerHTML="";return}
+  const pn=$("#rePn").value;const box=$("#reCheck");if(!pn.trim()){box.innerHTML="";$("#reSave").textContent="Registrar reimpressão";return}
   const h=reimpHist(pn);const it=lookupPn(pn);
   if(it){if(!$("#reMaq").dataset.touched)$("#reMaq").value=it.maq;if(!$("#reZona").dataset.touched&&zoneOf(it.bloco))$("#reZona").value=zoneOf(it.bloco)}
   box.innerHTML=h.length?`<div class="notice nc"><b>Reincidência de perda de documento.</b> Este PN já foi reimpresso ${h.length} ${h.length>1?"vezes":"vez"}. Última: ${fmtD(h[0].date)}, pedida por ${esc(h[0].solicitante)}.</div>`:`<div class="notice ok">Primeira reimpressão registrada para este PN.${it?" Máquina na programação: "+esc(it.maq)+".":""}</div>`;
@@ -766,14 +767,20 @@ function renderReCheck(){
 }
 $("#rePn").addEventListener("input",renderReCheck);
 ["#reMaq","#reZona"].forEach(s=>$(s).addEventListener("input",()=>$(s).dataset.touched="1"));
+let reSigImg=null;
+function reSigBtn(){const b=$("#reSig");b.classList.toggle("signed",!!reSigImg);b.innerHTML=reSigImg?`<img src="${reSigImg}" alt="Assinatura" class="sigthumb"> Assinado ✓ (assinar de novo)`:"Coletar assinatura do solicitante"}
+$("#reSig").addEventListener("click",async()=>{const img=await signPad($("#reSol").value.trim());if(img){reSigImg=img;reSigBtn()}});
 $("#reForm").addEventListener("submit",async e=>{
   e.preventDefault();const pn=$("#rePn").value.trim(),sol=$("#reSol").value.trim();if(!pn||!sol)return;
   const prev=reimpHist(pn);const now=Date.now();
   const rec={pn,pnKey:pnKey(pn),solicitante:sol,zona:$("#reZona").value,maq:$("#reMaq").value.trim(),obs:$("#reObs").value.trim(),date:today(),ts:now,reincidencia:prev.length>0,ocorrencia:prev.length+1};
+  const rid=now.toString(36)+"-"+slug(pn);
+  if(reSigImg){rec.sid="reimp_"+rid;rec.assinado=true}
   $("#reSave").disabled=true;
-  try{await put("reimpressao",now.toString(36)+"-"+slug(pn),rec);
+  try{if(reSigImg){await put("assinatura",rec.sid,{img:reSigImg,nome:sol,date:rec.date,pn,tipo:"reimpressao",ts:now});S.sigCache[rec.sid]=reSigImg}
+    await put("reimpressao",rid,rec);
     toast(rec.reincidencia?`Reincidência registrada: ${rec.ocorrencia}ª reimpressão deste PN`:"Reimpressão registrada");
-    $("#reForm").reset();delete $("#reMaq").dataset.touched;delete $("#reZona").dataset.touched;renderReCheck();
+    $("#reForm").reset();reSigImg=null;reSigBtn();delete $("#reMaq").dataset.touched;delete $("#reZona").dataset.touched;renderReCheck();
   }catch(err){toast(err.code==="invalid_argument"?"Você não tem permissão para gravar nesta página":"Não salvou ("+(err.code||err.message)+")")}
   $("#reSave").disabled=false;
 });
@@ -782,7 +789,8 @@ function renderReimp(){
   zoneOptions($("#reZona"),true,"Não sei");
   const q=norm($("#reFilter").value);
   const L=Object.entries(S.reimp).sort((a,b)=>b[1].ts-a[1].ts).filter(([,x])=>!q||norm(x.pn+" "+x.solicitante+" "+(x.maq||"")).includes(q));
-  $("#reList").innerHTML=L.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>PN</th><th>Solicitante</th><th>Zona / máquina</th><th></th></tr></thead><tbody>`+L.map(([id,x])=>`<tr><td>${fmtDT(x.ts)}</td><td class="mono">${esc(x.pn)}</td><td>${esc(x.solicitante)}${x.obs?`<br><span class="small muted">${esc(x.obs)}</span>`:""}</td><td>${esc(zoneById(x.zona)?.name||"–")}${x.maq?" · "+esc(x.maq):""}</td><td>${x.reincidencia?`<span class="pill nc">Reincidência ${x.ocorrencia}ª</span>`:`<span class="pill">1ª</span>`}</td></tr>`).join("")+`</tbody></table></div>`:`<div class="empty">${q?"Nada encontrado para este filtro.":"Nenhuma reimpressão registrada ainda. Use o formulário ao lado quando alguém pedir uma IT perdida."}</div>`;
+  $("#reList").innerHTML=L.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>PN</th><th>Solicitante</th><th>Zona / máquina</th><th></th></tr></thead><tbody>`+L.map(([id,x])=>`<tr><td>${fmtDT(x.ts)}</td><td class="mono">${esc(x.pn)}</td><td>${esc(x.solicitante)}${x.obs?`<br><span class="small muted">${esc(x.obs)}</span>`:""}${x.sid?`<br><img class="sigimg sm" data-sid="${esc(x.sid)}" alt="Assinatura de ${esc(x.solicitante)}">`:`<br><span class="small" style="color:var(--warn)">Sem assinatura</span>`}</td><td>${esc(zoneById(x.zona)?.name||"–")}${x.maq?" · "+esc(x.maq):""}</td><td>${x.reincidencia?`<span class="pill nc">Reincidência ${x.ocorrencia}ª</span>`:`<span class="pill">1ª</span>`}</td></tr>`).join("")+`</tbody></table></div>`:`<div class="empty">${q?"Nada encontrado para este filtro.":"Nenhuma reimpressão registrada ainda. Use o formulário ao lado quando alguém pedir uma IT perdida."}</div>`;
+  fillSigs($("#reList"));
 }
 
 /* ---------- PROGRAMAÇÃO ---------- */
