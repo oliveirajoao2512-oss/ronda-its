@@ -1,5 +1,5 @@
 create table if not exists public.ronda_docs (
-  coll text not null check (coll in ('config','programacao','ronda','reimpressao')),
+  coll text not null check (coll in ('config','programacao','ronda','reimpressao','assinatura')),
   id text not null,
   data jsonb not null,
   updated_at timestamptz not null default now(),

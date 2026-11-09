@@ -137,6 +137,20 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 .drop{border:2px dashed var(--line);border-radius:8px;padding:22px;text-align:center;cursor:pointer;background:var(--panel)}
 .drop.over{border-color:var(--accent);background:var(--accent-soft)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:600;z-index:20;max-width:90vw}
+.ops{display:flex;flex-direction:column;gap:10px}
+.op{border:1px solid var(--line);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:4px}
+.sigbtn{display:flex;align-items:center;justify-content:center;gap:8px;border-style:dashed}
+.sigbtn.signed{border-style:solid;border-color:var(--ok);color:var(--ok)}
+.sigthumb{height:28px;background:#fff;border-radius:3px}
+.sigov{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.sigbox{background:var(--panel);border-radius:8px;padding:14px;width:min(720px,100%);display:flex;flex-direction:column;gap:10px}
+.sigbox canvas{width:100%;aspect-ratio:5/2;background:#fff;border:2px solid var(--line);border-radius:6px;touch-action:none;cursor:crosshair}
+.opcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.opcard{border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:5px;padding:8px 10px;display:flex;flex-direction:column;gap:4px}
+.opcard.bad{border-left-color:var(--nc)}
+.sigimg{height:48px;max-width:160px;background:#fff;border:1px solid var(--line);border-radius:3px;object-fit:contain;align-self:flex-start}
+.sigimg.sm{height:30px;max-width:90px}
 .statusline{font-size:12px;color:var(--muted)}
 @media (min-width:820px){.split{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}}
 @media (prefers-reduced-motion:no-preference){.form{animation:drop .14s ease-out}@keyframes drop{from{opacity:.4;transform:translateY(-4px)}to{opacity:1;transform:none}}}
@@ -147,6 +161,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" data-tab="ronda" aria-selected="true">Ronda</button>
     <button role="tab" data-tab="dash" aria-selected="false">Dashboard</button>
+    <button role="tab" data-tab="cons" aria-selected="false">Consulta</button>
     <button role="tab" data-tab="reimp" aria-selected="false">Reimpressão</button>
     <button role="tab" data-tab="prog" aria-selected="false">Programação</button>
     <button role="tab" data-tab="ajustes" aria-selected="false">Zonas e TLs</button>
@@ -164,6 +179,18 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
         <label class="f">Mostrar<select id="rShow"><option value="pend">Pendentes primeiro</option><option value="all">Todas na ordem da programação</option><option value="nc">Só não conformes</option></select></label>
       </div>
       <div id="rSummary"></div>
+      <div class="row"><button class="btn ghost" id="manToggle" type="button">Cadastrar PN fora da programação</button></div>
+      <form id="manForm" class="stack" hidden autocomplete="off">
+        <div class="grid2">
+          <label class="f">Data<input type="date" id="mDate" required></label>
+          <label class="f">Máquina<input id="mMaq" required placeholder="ex.: MC-08" list="maqList"></label>
+          <label class="f">PN<input id="mPn" class="mono" required placeholder="ex.: 10001062714" list="pnList"></label>
+          <label class="f">Zona (bloco)<select id="mBloco"></select></label>
+          <label class="f">Operadores por turno<input id="mMod" type="number" min="1" max="12" value="1"></label>
+        </div>
+        <div class="row"><span class="small muted">Roda nos turnos:</span><label class="row small"><input type="checkbox" id="mT1" style="width:auto"> T1</label><label class="row small"><input type="checkbox" id="mT2" style="width:auto"> T2</label><label class="row small"><input type="checkbox" id="mT3" style="width:auto"> T3</label></div>
+        <div class="row"><button class="btn primary" type="submit">Adicionar à ronda</button><button class="btn ghost" type="button" id="manCancel">Cancelar</button></div>
+      </form>
     </div>
     <div id="rList" class="stack"></div>
   </section>
@@ -175,10 +202,28 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
         <label class="f">De<input type="date" id="dFrom"></label>
         <label class="f">Até<input type="date" id="dTo"></label>
         <label class="f">Turno<select id="dTurno"><option value="">Todos</option><option>T1</option><option>T2</option><option>T3</option></select></label>
-        <div class="row" style="align-self:end"><button class="btn ghost" id="dExport">Exportar CSV</button></div>
+        <label class="f">Período<select id="dPer"><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="7d">Últimos 7 dias</option><option value="mes">Mês atual</option><option value="mesant">Mês anterior</option><option value="custom">Personalizado</option></select></label>
       </div>
     </div>
+    <div class="panel stack reportbar">
+      <div class="row" style="justify-content:space-between"><div><h3 id="dPerLabel">Relatório</h3><div class="small muted" id="dMails"></div></div></div>
+      <div class="row"><button class="btn primary" id="dCopy" type="button">Copiar relatório para email</button><button class="btn" id="dMail" type="button">Abrir email</button><button class="btn ghost" id="dPrint" type="button">Imprimir / PDF</button><button class="btn ghost" id="dExport" type="button">Exportar CSV</button></div>
+    </div>
     <div id="dBody" class="stack"></div>
+  </section>
+
+  <!-- CONSULTA -->
+  <section id="v-cons" class="stack" hidden>
+    <div class="panel stack">
+      <div class="grid2">
+        <label class="f">PN<input id="cPn" class="mono" placeholder="Digite o PN" list="pnList" autocomplete="off"></label>
+        <label class="f">Data de<input type="date" id="cFrom"></label>
+        <label class="f">Até<input type="date" id="cTo"></label>
+        <label class="f">Turno<select id="cTurno"><option value="">Todos</option><option>T1</option><option>T2</option><option>T3</option></select></label>
+      </div>
+      <div class="row"><span class="small muted">Sem data mostra todo o histórico. Para o relatório de um dia, coloque a mesma data nos dois campos.</span><button class="linkbtn" id="cClear" type="button">Limpar datas</button></div>
+    </div>
+    <div id="cBody" class="stack"></div>
   </section>
 
   <!-- REIMPRESSAO -->
@@ -231,10 +276,14 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
       <h3 style="margin-top:8px">Motivos de IT incorreta</h3>
       <textarea id="motivosEdit" rows="7"></textarea>
       <p class="small muted" style="margin:0">Um motivo por linha. Aparecem como botões na ronda.</p>
+      <h3 style="margin-top:8px">Destinatários do relatório</h3>
+      <textarea id="mailsEdit" rows="3" placeholder="gerente.producao@empresa.com.br"></textarea>
+      <p class="small muted" style="margin:0">Um email por linha (gerente de produção, líder de produção). Usados no botão Abrir email do dashboard.</p>
       <div class="row"><button class="btn primary" id="saveCfg" type="button">Salvar ajustes</button></div>
     </div>
   </section>
 </main>
+<datalist id="opList"></datalist><datalist id="maqList"></datalist>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -264,7 +313,7 @@ const DEFAULT_CFG={
 };
 
 /* ---------- camada de dados: db compartilhado, com modo local de reserva ---------- */
-const S={cfg:DEFAULT_CFG,prog:{},ronda:{},reimp:{},db:null};
+const S={cfg:DEFAULT_CFG,prog:{},ronda:{},reimp:{},db:null,sigCache:{}};
 const listeners=[];
 function onData(fn){listeners.push(fn)}
 function emit(){listeners.forEach(f=>{try{f()}catch(e){console.error(e)}})}
@@ -291,7 +340,7 @@ const SB_URL=window.RONDA_SUPABASE_URL||"",SB_KEY=window.RONDA_SUPABASE_KEY||"",
 const collObj=c=>c==="programacao"?S.prog:c==="reimpressao"?S.reimp:c==="config"?{main:S.cfg}:S[c];
 async function sbLoad(){
   const all={config:{},programacao:{},ronda:{},reimpressao:{}};let from=0;
-  while(true){const {data,error}=await S.sb.from(SB_TABLE).select("coll,id,data").range(from,from+999);if(error)throw error;data.forEach(r=>{if(all[r.coll])all[r.coll][r.id]=r.data});if(data.length<1000)break;from+=1000}
+  while(true){const {data,error}=await S.sb.from(SB_TABLE).select("coll,id,data").neq("coll","assinatura").range(from,from+999);if(error)throw error;data.forEach(r=>{if(all[r.coll])all[r.coll][r.id]=r.data});if(data.length<1000)break;from+=1000}
   Object.entries(all).forEach(([c,o])=>setColl(c,o));
   $("#syncState").textContent="Dados compartilhados · atualizado "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});emit();
 }
@@ -302,6 +351,12 @@ async function initSupabase(){
   S.sb.channel("ronda").on("postgres_changes",{event:"*",schema:"public",table:SB_TABLE},soon).subscribe();
   setInterval(()=>{if(!document.hidden)soon()},60000);
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)soon()});
+}
+async function getSigs(ids){
+  const out={};
+  if(S.sb){for(let i=0;i<ids.length;i+=100){const {data,error}=await S.sb.from(SB_TABLE).select("id,data").eq("coll","assinatura").in("id",ids.slice(i,i+100));if(error)throw error;data.forEach(r=>out[r.id]=r.data.img)}return out}
+  if(S.db){await Promise.all(ids.map(async id=>{const d=await S.db.collection("assinatura").doc(id).get();if(d.exists)out[id]=d.data().img}));return out}
+  const o=LocalStore.read("assinatura");ids.forEach(id=>{if(o[id])out[id]=o[id].img});return out;
 }
 async function initStore(){
   if(!(window.claude&&window.claude.use)&&SB_URL&&window.supabase){await initSupabase();return}
@@ -351,7 +406,8 @@ function parsePlan(wb,fileName){
   if(hdr<0){for(const n of wb.SheetNames){const r=rowsOf(wb.Sheets[n]);const h=findHdr(r);if(h>=0){rows=r;hdr=h;sheetName=n;break}}}
   if(hdr<0)throw new Error("Não achei a aba com as colunas Máquinas e PART NUMBER.");
   const H=rows[hdr].map(norm);
-  const ci={maq:H.findIndex(h=>/^MAQUINA/.test(h)),pn:H.indexOf("PART NUMBER"),T1:H.indexOf("T1"),T2:H.indexOf("T2"),T3:H.indexOf("T3"),obs:H.findIndex(h=>/^OBSERV/.test(h))};
+  const H2=H.map(h=>h.replace(/\s+/g," "));
+  const ci={mod1:H2.indexOf("MOD T1"),mod2:H2.indexOf("MOD T2"),mod3:H2.indexOf("MOD T3"),maq:H.findIndex(h=>/^MAQUINA/.test(h)),pn:H.indexOf("PART NUMBER"),T1:H.indexOf("T1"),T2:H.indexOf("T2"),T3:H.indexOf("T3"),obs:H.findIndex(h=>/^OBSERV/.test(h))};
   // data: célula "dd/mm - DIA" no topo; ano pelo nome do arquivo
   let date=null;
   for(let r=0;r<hdr&&!date;r++)for(const c of rows[r]||[]){const m=/(\d{1,2})\/(\d{1,2})/.exec(String(c??""));if(m&&/[A-Z]/.test(norm(c))){date={d:+m[1],m:+m[2]};break}}
@@ -373,7 +429,8 @@ function parsePlan(wb,fileName){
     if(a)lastMaq=a;
     if(!pn||pn==="-"||pn==="0")continue;
     const t={T1:runs(row[ci.T1]),T2:runs(row[ci.T2]),T3:runs(row[ci.T3])};
-    pend.push({maq:a||lastMaq,pn,turnos:t,obs:ci.obs>=0?String(row[ci.obs]??"").trim():"",bloco:""});
+    const mv=c=>c>=0?Math.max(0,Math.round(+row[c]||0)):0;
+    pend.push({maq:a||lastMaq,pn,turnos:t,mod:{T1:mv(ci.mod1),T2:mv(ci.mod2),T3:mv(ci.mod3)},obs:ci.obs>=0?String(row[ci.obs]??"").trim():"",bloco:""});
   }
   if(pend.length){pend.forEach(it=>it.bloco="SEM BLOCO");items.push(...pend);blocks.push("SEM BLOCO")}
   // índice estável para PN repetido na mesma máquina
@@ -382,7 +439,7 @@ function parsePlan(wb,fileName){
 }
 
 /* ---------- abas ---------- */
-const TABS=["ronda","dash","reimp","prog","ajustes"];
+const TABS=["ronda","dash","cons","reimp","prog","ajustes"];
 function showTab(t){
   if(!TABS.includes(t))t="ronda";
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
@@ -431,44 +488,108 @@ function renderRonda(){
       }).join("")+`</div>`).join("")+`</div>`;
   }).join("");
 }
+function opsOf(r){if(r.ops&&r.ops.length)return r.ops;return[{nome:r.operador||"",treinado:!!r.treinado,assinado:false}]}
 function formHtml(it,r){
-  if(!draft)draft=r?{treinado:r.treinado,itOk:r.itOk,motivos:[...(r.motivos||[])],obs:r.obs||"",operador:r.operador||""}:{treinado:null,itOk:null,motivos:[],obs:"",operador:""};
+  const turno=$("#rTurno").value;
+  if(!draft){
+    if(r)draft={itOk:r.itOk,motivos:[...(r.motivos||[])],obs:r.obs||"",ops:opsOf(r).map(o=>({nome:o.nome||"",treinado:o.treinado,sig:o.assinado?"saved":null,sid:o.sid||null}))};
+    else{const n=Math.max(1,Math.min(12,Math.round(+(it.mod&&it.mod[turno])||1)));draft={itOk:null,motivos:[],obs:"",ops:Array.from({length:n},()=>({nome:"",treinado:null,sig:null,sid:null}))}}
+  }
   const d=draft;
   const yn=(f,v,l)=>`<button type="button" data-f="${f}" data-v="${v}" class="${v?"yes":"no"} ${d[f]===v?"on":""}">${l}</button>`;
+  const ops=d.ops.map((o,i)=>`<div class="op" data-op="${i}">
+      <div class="row" style="justify-content:space-between"><b>Operador ${i+1}</b>${d.ops.length>1?`<button type="button" class="linkbtn" data-oprm="${i}">Remover</button>`:""}</div>
+      <input class="opName" data-op="${i}" value="${esc(o.nome)}" placeholder="Nome ou matrícula" list="opList" autocomplete="off">
+      <div class="seg"><button type="button" data-opt="${i}" data-v="true" class="yes ${o.treinado===true?"on":""}">Treinado</button><button type="button" data-opt="${i}" data-v="false" class="no ${o.treinado===false?"on":""}">Não treinado</button></div>
+      <button type="button" class="btn sigbtn ${o.sig?"signed":""}" data-sig="${i}">${o.sig?(o.sig==="saved"?"Assinado ✓ (assinar de novo)":`<img src="${o.sig}" alt="Assinatura" class="sigthumb"> Assinado ✓`):"Coletar assinatura"}</button>
+    </div>`).join("");
   return`<div class="form" data-form="${esc(it.k)}">
-    <div class="q"><span>Operador está treinado nesta IT?</span><div class="seg">${yn("treinado",true,"Sim")}${yn("treinado",false,"Não")}</div></div>
+    <div class="q"><span>Operadores neste PN no ${turno}${it.mod&&it.mod[turno]?` <span class="muted small">(programação: ${it.mod[turno]})</span>`:""}</span><div class="ops">${ops}</div><button type="button" class="btn ghost" data-act="addop">Adicionar operador</button></div>
     <div class="q"><span>A IT está correta?</span><div class="seg">${yn("itOk",true,"Sim")}${yn("itOk",false,"Não")}</div></div>
     ${d.itOk===false?`<div class="q"><span>Motivo da IT incorreta</span><div class="chips">${S.cfg.motivos.map(m=>`<button type="button" data-m="${esc(m)}" class="${d.motivos.includes(m)?"on":""}">${esc(m)}</button>`).join("")}</div></div>`:""}
-    <div class="grid2"><label class="f">Operador (opcional)<input id="fOp" value="${esc(d.operador)}" placeholder="Nome ou matrícula"></label></div>
     <label class="f">${d.itOk===false&&!d.motivos.length?"Descreva o motivo":"Observação (opcional)"}<textarea id="fObs" placeholder="${d.itOk===false?"Detalhe o que está errado na IT":""}">${esc(d.obs)}</textarea></label>
     <div class="row"><button type="button" class="btn primary" data-act="save">Salvar</button><button type="button" class="btn ghost" data-act="cancel">Fechar</button>${r?`<button type="button" class="btn danger" data-act="del">Apagar registro</button>`:""}</div>
   </div>`;
 }
+/* assinatura */
+function signPad(nome){
+  return new Promise(res=>{
+    const ov=document.createElement("div");ov.className="sigov";
+    ov.innerHTML=`<div class="sigbox"><div class="row" style="justify-content:space-between"><h3>Assinatura${nome?" · "+esc(nome):""}</h3><span class="small muted">Assine com o dedo</span></div><canvas width="900" height="360"></canvas><div class="row"><button type="button" class="btn primary" data-s="ok">Confirmar</button><button type="button" class="btn" data-s="clr">Limpar</button><button type="button" class="btn ghost" data-s="x">Cancelar</button></div></div>`;
+    document.body.appendChild(ov);const cv=ov.querySelector("canvas");const cx=cv.getContext("2d");
+    const ink=getComputedStyle(document.body).color;cx.lineWidth=5;cx.lineCap="round";cx.lineJoin="round";cx.strokeStyle="#111";
+    let drawing=false,used=false,last=null;
+    const pt=e=>{const b=cv.getBoundingClientRect();return[(e.clientX-b.left)*cv.width/b.width,(e.clientY-b.top)*cv.height/b.height]};
+    cv.addEventListener("pointerdown",e=>{drawing=true;used=true;last=pt(e);cv.setPointerCapture(e.pointerId);cx.beginPath();cx.arc(last[0],last[1],2.5,0,7);cx.fillStyle="#111";cx.fill()});
+    cv.addEventListener("pointermove",e=>{if(!drawing)return;const p=pt(e);cx.beginPath();cx.moveTo(last[0],last[1]);cx.lineTo(p[0],p[1]);cx.stroke();last=p});
+    ["pointerup","pointercancel"].forEach(t=>cv.addEventListener(t,()=>drawing=false));
+    ov.addEventListener("click",e=>{const b=e.target.closest("[data-s]");if(!b)return;
+      if(b.dataset.s==="clr"){cx.clearRect(0,0,cv.width,cv.height);used=false;return}
+      if(b.dataset.s==="ok"&&!used){toast("Peça para o operador assinar");return}
+      let out=null;
+      if(b.dataset.s==="ok"){const s=document.createElement("canvas");s.width=300;s.height=120;const sx=s.getContext("2d");sx.fillStyle="#fff";sx.fillRect(0,0,300,120);sx.drawImage(cv,0,0,300,120);out=s.toDataURL("image/jpeg",.7)}
+      ov.remove();res(out)});
+  });
+}
+$("#rList").addEventListener("input",e=>{const i=e.target.closest(".opName");if(i&&draft)draft.ops[+i.dataset.op].nome=i.value});
 $("#rList").addEventListener("click",async e=>{
   const pnb=e.target.closest(".pn");
   if(pnb){openKey=openKey===pnb.dataset.k?null:pnb.dataset.k;draft=null;renderRonda();const f=document.querySelector(`[data-form="${CSS.escape(pnb.dataset.k)}"]`);if(f)pnb.scrollIntoView({block:"nearest"});return}
   const form=e.target.closest(".form");if(!form)return;
-  const keepText=()=>{draft.obs=$("#fObs")?.value??draft.obs;draft.operador=$("#fOp")?.value??draft.operador};
+  const keepText=()=>{draft.obs=$("#fObs")?.value??draft.obs;document.querySelectorAll(".opName").forEach(i=>{draft.ops[+i.dataset.op].nome=i.value})};
   const yn=e.target.closest("[data-f]");
   if(yn){keepText();draft[yn.dataset.f]=yn.dataset.v==="true";if(yn.dataset.f==="itOk"&&draft.itOk)draft.motivos=[];renderRonda();return}
+  const opt=e.target.closest("[data-opt]");
+  if(opt){keepText();draft.ops[+opt.dataset.opt].treinado=opt.dataset.v==="true";renderRonda();return}
+  const rm=e.target.closest("[data-oprm]");
+  if(rm){keepText();draft.ops.splice(+rm.dataset.oprm,1);renderRonda();return}
+  const sg=e.target.closest("[data-sig]");
+  if(sg){keepText();const o=draft.ops[+sg.dataset.sig];const img=await signPad(o.nome);if(img){o.sig=img;renderRonda()}return}
   const m=e.target.closest("[data-m]");
   if(m){keepText();const i=draft.motivos.indexOf(m.dataset.m);i>=0?draft.motivos.splice(i,1):draft.motivos.push(m.dataset.m);renderRonda();return}
   const act=e.target.closest("[data-act]");if(!act)return;
+  if(act.dataset.act==="addop"){keepText();draft.ops.push({nome:"",treinado:null,sig:null,sid:null});renderRonda();return}
   const date=$("#rDate").value,turno=$("#rTurno").value;const p=S.prog[date];const it=p.items.find(x=>x.k===form.dataset.form);
   const id=rondaId(date,turno,it.k);
   if(act.dataset.act==="cancel"){openKey=null;draft=null;renderRonda();return}
   if(act.dataset.act==="del"){try{await del("ronda",id);toast("Registro apagado")}catch(err){toast("Não foi possível apagar ("+err.code+")")}openKey=null;draft=null;renderRonda();return}
   keepText();
-  if(draft.treinado===null||draft.itOk===null){toast("Responda as duas perguntas");return}
+  if(!draft.ops.length){toast("Inclua pelo menos um operador");return}
+  if(draft.ops.some(o=>!o.nome.trim())){toast("Preencha o nome de todos os operadores");return}
+  if(draft.ops.some(o=>o.treinado===null)){toast("Marque se cada operador está treinado");return}
+  if(draft.itOk===null){toast("Responda se a IT está correta");return}
   if(draft.itOk===false&&!draft.motivos.length&&!draft.obs.trim()){toast("Informe o motivo da IT incorreta");return}
-  const rec={date,turno,k:it.k,maq:it.maq,pn:it.pn,bloco:it.bloco,treinado:draft.treinado,itOk:draft.itOk,motivos:draft.itOk?[]:draft.motivos,obs:draft.obs.trim(),operador:draft.operador.trim(),tl:leaderOf(zoneOf(it.bloco),turno),ts:Date.now()};
+  const stamp=Date.now().toString(36);draft.ops.forEach((o,i)=>{if(o.sig&&o.sig!=="saved")o.sid=id+"_"+stamp+i});
+  const ops=draft.ops.map(o=>({nome:o.nome.trim(),treinado:o.treinado,assinado:!!o.sig,sid:o.sig?o.sid:null}));
+  const rec={date,turno,k:it.k,maq:it.maq,pn:it.pn,bloco:it.bloco,ops,treinado:ops.every(o=>o.treinado),itOk:draft.itOk,motivos:draft.itOk?[]:draft.motivos,obs:draft.obs.trim(),tl:leaderOf(zoneOf(it.bloco),turno),ts:Date.now()};
   act.disabled=true;
-  try{await put("ronda",id,rec);toast(rec.treinado&&rec.itOk?"Conforme registrado":"Não conformidade registrada");openKey=null;draft=null;renderRonda()}
+  try{
+    for(const o of draft.ops){if(o.sig&&o.sig!=="saved"){const sid=o.sid;await put("assinatura",sid,{img:o.sig,nome:o.nome.trim(),date,turno,pn:it.pn,maq:it.maq,ts:Date.now()});S.sigCache[sid]=o.sig}}
+    await put("ronda",id,rec);
+    const semAss=ops.filter(o=>!o.assinado).length;
+    toast((rec.treinado&&rec.itOk?"Conforme registrado":"Não conformidade registrada")+(semAss?` · ${semAss} sem assinatura`:""));openKey=null;draft=null;renderRonda()}
   catch(err){act.disabled=false;toast(err.code==="invalid_argument"?"Você não tem permissão para gravar nesta página":"Não salvou ("+(err.code||err.message)+"). Tente de novo.")}
 });
 ["#rDate","#rTurno","#rZona","#rShow"].forEach(s=>$(s).addEventListener("change",()=>{openKey=null;draft=null;store("ronda:"+s.slice(2).toLowerCase(),$(s).value);renderRonda()}));
 
 /* ---------- DASHBOARD ---------- */
+const MES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+function setPeriod(v){
+  const t=new Date();let f=new Date(t),e=new Date(t);
+  if(v==="ontem"){f.setDate(t.getDate()-1);e=new Date(f)}
+  else if(v==="7d"){f.setDate(t.getDate()-6)}
+  else if(v==="mes"){f=new Date(t.getFullYear(),t.getMonth(),1)}
+  else if(v==="mesant"){f=new Date(t.getFullYear(),t.getMonth()-1,1);e=new Date(t.getFullYear(),t.getMonth(),0)}
+  else if(v==="custom")return;
+  $("#dFrom").value=iso(f);$("#dTo").value=iso(e);
+}
+function periodLabel(){
+  const f=$("#dFrom").value,t=$("#dTo").value,p=$("#dPer").value;
+  if(f===t)return fmtD(f);
+  if(p==="mes"||p==="mesant"){const d=new Date(f+"T12:00");return MES[d.getMonth()]+"/"+d.getFullYear()}
+  return fmtD(f)+" a "+fmtD(t);
+}
+function reportKind(){const p=$("#dPer").value;return(p==="mes"||p==="mesant")?"mensal":$("#dFrom").value===$("#dTo").value?"diário":"do período"}
 function filteredRonda(){
   const f=$("#dFrom").value,t=$("#dTo").value,tu=$("#dTurno").value;
   return Object.values(S.ronda).filter(r=>(!f||r.date>=f)&&(!t||r.date<=t)&&(!tu||r.turno===tu));
@@ -478,73 +599,160 @@ function plannedCount(zoneId){
   Object.values(S.prog).forEach(p=>{if((f&&p.date<f)||(t&&p.date>t))return;p.items.forEach(it=>{if(zoneId!==undefined&&zoneOf(it.bloco)!==zoneId)return;["T1","T2","T3"].forEach(T=>{if((!tu||tu===T)&&it.turnos[T])n++})})});
   return n;
 }
-function renderDash(){
-  const R=filteredRonda();const B=$("#dBody");
-  if(!R.length){B.innerHTML=`<div class="empty"><h3>Sem rondas no período</h3><p>Os indicadores aparecem assim que você registrar a primeira máquina na aba <b>Ronda</b>, ou ajuste o período acima.</p></div>`+reimpDash();return}
-  const nc=R.filter(r=>!(r.treinado&&r.itOk));const notTr=R.filter(r=>!r.treinado);const itBad=R.filter(r=>!r.itOk);
+function inPeriod(d){const f=$("#dFrom").value,t=$("#dTo").value;return(!f||d>=f)&&(!t||d<=t)}
+const isOk=r=>r.treinado&&r.itOk;
+function computeStats(){
+  const R=filteredRonda();
+  const ops=R.flatMap(r=>opsOf(r).map(o=>({o,r})));
+  const nt=ops.filter(x=>!x.o.treinado);
+  const itBad=R.filter(r=>!r.itOk);const nc=R.filter(r=>!isOk(r));
+  const semAss=ops.filter(x=>!x.o.assinado);
   const planned=plannedCount();
+  const zs=S.cfg.zones.map(z=>{const rz=R.filter(r=>zoneOf(r.bloco)===z.id);const n=rz.filter(r=>!isOk(r)).length;
+    const mot={};rz.forEach(r=>(r.motivos||[]).forEach(m=>mot[m]=(mot[m]||0)+1));const top=Object.entries(mot).sort((a,b)=>b[1]-a[1])[0];
+    const pl=plannedCount(z.id);const zo=rz.flatMap(r=>opsOf(r));
+    return{z,tot:rz.length,nc:n,rate:rz.length?n/rz.length:null,ops:zo.length,nt:zo.filter(o=>!o.treinado).length,it:rz.filter(r=>!r.itOk).length,top,cov:pl?pct(rz.length,pl):null,reimp:Object.values(S.reimp).filter(x=>x.zona===z.id&&inPeriod(x.date)).length}});
+  const zr=[...zs].sort((a,b)=>(b.rate??-1)-(a.rate??-1));
+  const tls={};R.forEach(r=>{const n=tlOf(r)||"TL não definido";const z=zoneById(zoneOf(r.bloco))?.name||"Sem zona";tls[n]=tls[n]||{n,tot:0,nc:0,nt:0,it:0,zt:new Set()};const o=tls[n];o.tot++;if(!isOk(r))o.nc++;o.nt+=opsOf(r).filter(x=>!x.treinado).length;if(!r.itOk)o.it++;o.zt.add(z+" "+r.turno)});
+  const tlE=Object.values(tls).sort((a,b)=>b.nc/b.tot-a.nc/a.tot||b.nc-a.nc);
+  const mot={};itBad.forEach(r=>{(r.motivos&&r.motivos.length?r.motivos:["Outro (descrito na observação)"]).forEach(m=>mot[m]=(mot[m]||0)+1)});
+  const motE=Object.entries(mot).sort((a,b)=>b[1]-a[1]);
+  const mach={};nc.forEach(r=>{const k=r.maq;mach[k]=mach[k]||{n:0,z:zoneOf(r.bloco)};mach[k].n++});
+  const machE=Object.entries(mach).sort((a,b)=>b[1].n-a[1].n).slice(0,8);
+  const reimp=Object.values(S.reimp).filter(x=>inPeriod(x.date)).sort((a,b)=>b.ts-a.ts);
+  return{R,ops,nt,itBad,nc,semAss,planned,zs,zr,tlE,motE,machE,reimp};
+}
+const ntSort=(a,b)=>a.r.date.localeCompare(b.r.date)||a.r.turno.localeCompare(b.r.turno)||String(zoneOf(a.r.bloco)).localeCompare(String(zoneOf(b.r.bloco)));
+function renderDash(){
+  const st=computeStats();const {R}=st;const B=$("#dBody");
+  $("#dPerLabel").textContent=`Relatório ${reportKind()} · ${periodLabel()}${$("#dTurno").value?" · "+$("#dTurno").value:""}`;
+  $("#dMails").textContent=(S.cfg.emails||[]).length?"Para: "+S.cfg.emails.join(", "):"Cadastre os emails do gerente e do líder de produção em Zonas e TLs.";
+  if(!R.length){B.innerHTML=`<div class="empty"><h3>Sem rondas no período</h3><p>Os indicadores aparecem assim que você registrar a primeira máquina na aba <b>Ronda</b>, ou escolha outro período acima.</p></div>`+reimpDash(st);return}
   let h=`<div class="kpis">
     <div class="kpi"><div class="v">${R.length}</div><div class="l">PNs verificados</div></div>
-    <div class="kpi"><div class="v" style="color:var(--ok)">${pct(R.length-nc.length,R.length)}%</div><div class="l">Conformidade geral</div></div>
-    <div class="kpi"><div class="v" style="color:var(--nc)">${itBad.length}</div><div class="l">ITs incorretas</div></div>
-    <div class="kpi"><div class="v" style="color:var(--nc)">${notTr.length}</div><div class="l">Operadores não treinados</div></div>
-    <div class="kpi"><div class="v">${planned?pct(R.length,planned)+"%":"–"}</div><div class="l">Cobertura da programação</div></div>
+    <div class="kpi"><div class="v" style="color:var(--ok)">${pct(R.length-st.nc.length,R.length)}%</div><div class="l">PNs conformes</div></div>
+    <div class="kpi"><div class="v">${st.ops.length}</div><div class="l">Operadores verificados</div></div>
+    <div class="kpi"><div class="v" style="color:var(--nc)">${st.nt.length}</div><div class="l">Operadores não treinados</div></div>
+    <div class="kpi"><div class="v" style="color:var(--nc)">${st.itBad.length}</div><div class="l">ITs incorretas</div></div>
+    <div class="kpi"><div class="v" style="color:var(--warn)">${st.semAss.length}</div><div class="l">Sem assinatura</div></div>
+    <div class="kpi"><div class="v">${st.planned?pct(R.length,st.planned)+"%":"–"}</div><div class="l">Cobertura da programação</div></div>
   </div>`;
-  // zonas
-  const zs=S.cfg.zones.map(z=>{const rz=R.filter(r=>zoneOf(r.bloco)===z.id);const n=rz.filter(r=>!(r.treinado&&r.itOk)).length;
-    const mot={};rz.forEach(r=>(r.motivos||[]).forEach(m=>mot[m]=(mot[m]||0)+1));const top=Object.entries(mot).sort((a,b)=>b[1]-a[1])[0];
-    const pl=plannedCount(z.id);
-    return{z,tot:rz.length,nc:n,rate:rz.length?n/rz.length:null,tr:rz.filter(r=>!r.treinado).length,it:rz.filter(r=>!r.itOk).length,top,cov:pl?pct(rz.length,pl):null,reimp:Object.values(S.reimp).filter(x=>x.zona===z.id&&inPeriod(x.date)).length}});
-  const ranked=[...zs].sort((a,b)=>(b.rate??-1)-(a.rate??-1));
   h+=`<div class="stack" style="gap:8px"><div class="row" style="justify-content:space-between"><h2>Zonas mais defasadas</h2><span class="small muted">Ordenado pela taxa de não conformidade</span></div><div class="zcards">`+
-    ranked.map((s,i)=>{const cls=s.rate===null?"":s.rate>=.3?"bad":s.rate>=.1?"mid":"good";
+    st.zr.map((s,i)=>{const cls=s.rate===null?"":s.rate>=.3?"bad":s.rate>=.1?"mid":"good";
       return`<div class="zc ${cls}"><div class="row" style="justify-content:space-between"><span class="rank">${s.rate===null?"SEM RONDA":"#"+(i+1)}</span>${s.rate!==null?`<span class="pill ${cls==="bad"?"nc":cls==="mid"?"warn":"ok"}">${Math.round(s.rate*100)}% NC</span>`:""}</div>
       <div><h3>${esc(s.z.name)}</h3><div class="small muted">${esc(leadersLine(s.z))}</div></div>
       <div class="big">${s.tot?pct(s.tot-s.nc,s.tot)+"%":"–"}<span class="small muted" style="font-family:var(--f-body);font-weight:500"> conforme</span></div>
-      <dl><dt>PNs verificados</dt><dd>${s.tot}</dd><dt>IT incorreta</dt><dd>${s.it}</dd><dt>Operador não treinado</dt><dd>${s.tr}</dd><dt>Cobertura</dt><dd>${s.cov===null?"–":s.cov+"%"}</dd><dt>Reimpressões</dt><dd>${s.reimp}</dd></dl>
+      <dl><dt>PNs verificados</dt><dd>${s.tot}</dd><dt>IT incorreta</dt><dd>${s.it}</dd><dt>Operadores não treinados</dt><dd>${s.nt} de ${s.ops}</dd><dt>Cobertura</dt><dd>${s.cov===null?"–":s.cov+"%"}</dd><dt>Reimpressões</dt><dd>${s.reimp}</dd></dl>
       ${s.top?`<div class="small"><span class="muted">Motivo mais comum:</span> ${esc(s.top[0])}</div>`:""}</div>`}).join("")+`</div></div>`;
-  // team leaders
-  const tls={};R.forEach(r=>{const n=tlOf(r)||"TL não definido";const z=zoneById(zoneOf(r.bloco))?.name||"Sem zona";tls[n]=tls[n]||{n,tot:0,nc:0,tr:0,it:0,zt:new Set()};const o=tls[n];o.tot++;if(!(r.treinado&&r.itOk))o.nc++;if(!r.treinado)o.tr++;if(!r.itOk)o.it++;o.zt.add(z+" "+r.turno)});
-  const tlE=Object.values(tls).sort((a,b)=>b.nc/b.tot-a.nc/a.tot||b.nc-a.nc);
-  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Team leaders</h3><span class="small muted">Ordenado pela taxa de não conformidade</span></div><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Team leader</th><th>Zona e turno</th><th class="num">Verificados</th><th class="num">IT incorreta</th><th class="num">Não treinado</th><th class="num">Conformidade</th></tr></thead><tbody>`+
-    tlE.map((o,i)=>{const c=pct(o.tot-o.nc,o.tot);const cls=c<70?"nc":c<90?"warn":"ok";return`<tr><td>${i+1}</td><td><b>${esc(o.n)}</b></td><td class="small">${esc([...o.zt].join(", "))}</td><td class="num">${o.tot}</td><td class="num">${o.it}</td><td class="num">${o.tr}</td><td class="num"><span class="pill ${cls}">${c}%</span></td></tr>`}).join("")+`</tbody></table></div></div>`;
-  // motivos + máquinas
-  const mot={};itBad.forEach(r=>{(r.motivos&&r.motivos.length?r.motivos:["Outro (descrito na observação)"]).forEach(m=>mot[m]=(mot[m]||0)+1)});
-  const motE=Object.entries(mot).sort((a,b)=>b[1]-a[1]);const mmax=motE[0]?.[1]||1;
-  const mach={};nc.forEach(r=>{const k=r.maq;mach[k]=mach[k]||{n:0,z:zoneOf(r.bloco)};mach[k].n++});
-  const machE=Object.entries(mach).sort((a,b)=>b[1].n-a[1].n).slice(0,8);const xmax=machE[0]?.[1].n||1;
-  h+=`<div class="split"><div class="panel stack"><h3>Motivos de IT incorreta</h3>${motE.length?`<div class="hbars">`+motE.map(([m,n])=>`<div class="hb"><span>${esc(m)}</span><span class="t"><i style="width:${n*100/mmax}%"></i></span><span class="n">${n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhuma IT incorreta no período.</p>`}</div>
-  <div class="panel stack"><h3>Máquinas com mais não conformidades</h3>${machE.length?`<div class="hbars">`+machE.map(([m,o])=>`<div class="hb"><span>${esc(m)} <span class="muted">· ${esc(zoneById(o.z)?.name||"")}</span></span><span class="t"><i style="width:${o.n*100/xmax}%"></i></span><span class="n">${o.n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhuma não conformidade no período.</p>`}</div></div>`;
-  // tendência por dia
-  const days={};R.forEach(r=>{days[r.date]=days[r.date]||{ok:0,nc:0};days[r.date][(r.treinado&&r.itOk)?"ok":"nc"]++});
-  const dk=Object.keys(days).sort().slice(-21);const dmax=Math.max(...dk.map(d=>days[d].ok+days[d].nc),1);
-  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Rondas por dia</h3><div class="legend"><span style="--c:var(--ok)">Conforme</span><span style="--c:var(--nc)">Não conforme</span></div></div>
-  <div class="trend">${dk.map(d=>{const o=days[d];return`<div class="d" title="${fmtD(d)}: ${o.ok} conforme, ${o.nc} não conforme"><span class="lb">${o.ok+o.nc}</span><div class="col" style="height:${(o.ok+o.nc)*90/dmax}%"><i style="height:${o.ok*100/(o.ok+o.nc)}%;background:var(--ok)"></i><i style="height:${o.nc*100/(o.ok+o.nc)}%;background:var(--nc)"></i></div><span class="lb">${d.slice(8)}/${d.slice(5,7)}</span></div>`}).join("")}</div></div>`;
-  // tabela de NCs
-  const ncs=[...nc].sort((a,b)=>b.ts-a.ts);
-  h+=`<div class="panel stack"><h3>Não conformidades (${ncs.length})</h3><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Treinado</th><th>IT</th><th>Motivo</th></tr></thead><tbody>`+
-    ncs.slice(0,200).map(r=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td>${r.treinado?`<span class="pill ok">Sim</span>`:`<span class="pill nc">Não</span>`}</td><td>${r.itOk?`<span class="pill ok">OK</span>`:`<span class="pill nc">Incorreta</span>`}</td><td>${esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))}${r.operador?`<br><span class="muted small">Operador: ${esc(r.operador)}</span>`:""}</td></tr>`).join("")+`</tbody></table></div></div>`;
-  B.innerHTML=h+reimpDash();
+  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Team leaders</h3><span class="small muted">Ordenado pela taxa de não conformidade</span></div><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Team leader</th><th>Zona e turno</th><th class="num">PNs</th><th class="num">IT incorreta</th><th class="num">Op. não treinados</th><th class="num">Conformidade</th></tr></thead><tbody>`+
+    st.tlE.map((o,i)=>{const c=pct(o.tot-o.nc,o.tot);const cls=c<70?"nc":c<90?"warn":"ok";return`<tr><td>${i+1}</td><td><b>${esc(o.n)}</b></td><td class="small">${esc([...o.zt].join(", "))}</td><td class="num">${o.tot}</td><td class="num">${o.it}</td><td class="num">${o.nt}</td><td class="num"><span class="pill ${cls}">${c}%</span></td></tr>`}).join("")+`</tbody></table></div></div>`;
+  const nt=[...st.nt].sort(ntSort);
+  h+=`<div class="panel stack"><h3>Operadores não treinados (${nt.length})</h3>${nt.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Operador</th><th>Assinatura</th></tr></thead><tbody>`+
+    nt.map(({o,r})=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td><b>${esc(o.nome||"Não informado")}</b></td><td>${o.assinado?`<span class="pill ok">Sim</span>`:`<span class="pill warn">Não</span>`}</td></tr>`).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Todos os operadores verificados no período estavam treinados.</p>`}</div>`;
+  const mmax=st.motE[0]?.[1]||1,xmax=st.machE[0]?.[1].n||1;
+  h+=`<div class="split"><div class="panel stack"><h3>Motivos de IT incorreta</h3>${st.motE.length?`<div class="hbars">`+st.motE.map(([m,n])=>`<div class="hb"><span>${esc(m)}</span><span class="t"><i style="width:${n*100/mmax}%"></i></span><span class="n">${n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhuma IT incorreta no período.</p>`}</div>
+  <div class="panel stack"><h3>Máquinas com mais não conformidades</h3>${st.machE.length?`<div class="hbars">`+st.machE.map(([m,o])=>`<div class="hb"><span>${esc(m)} <span class="muted">· ${esc(zoneById(o.z)?.name||"")}</span></span><span class="t"><i style="width:${o.n*100/xmax}%"></i></span><span class="n">${o.n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhuma não conformidade no período.</p>`}</div></div>`;
+  const days={};R.forEach(r=>{days[r.date]=days[r.date]||{ok:0,nc:0};days[r.date][isOk(r)?"ok":"nc"]++});
+  const dk=Object.keys(days).sort().slice(-31);
+  if(dk.length>1){const dmax=Math.max(...dk.map(d=>days[d].ok+days[d].nc),1);
+  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>PNs verificados por dia</h3><div class="legend"><span style="--c:var(--ok)">Conforme</span><span style="--c:var(--nc)">Não conforme</span></div></div>
+  <div class="trend">${dk.map(d=>{const o=days[d];return`<div class="d" title="${fmtD(d)}: ${o.ok} conforme, ${o.nc} não conforme"><span class="lb">${o.ok+o.nc}</span><div class="col" style="height:${(o.ok+o.nc)*90/dmax}%"><i style="height:${o.ok*100/(o.ok+o.nc)}%;background:var(--ok)"></i><i style="height:${o.nc*100/(o.ok+o.nc)}%;background:var(--nc)"></i></div><span class="lb">${d.slice(8)}/${d.slice(5,7)}</span></div>`}).join("")}</div></div>`}
+  const its=[...st.itBad].sort((a,b)=>b.ts-a.ts);
+  h+=`<div class="panel stack"><h3>ITs incorretas (${its.length})</h3>${its.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Motivo</th></tr></thead><tbody>`+
+    its.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td>${esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))}</td></tr>`).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Nenhuma IT incorreta no período.</p>`}</div>`;
+  B.innerHTML=h+reimpDash(st);
 }
-function inPeriod(d){const f=$("#dFrom").value,t=$("#dTo").value;return(!f||d>=f)&&(!t||d<=t)}
-function reimpDash(){
-  const L=Object.values(S.reimp).filter(x=>inPeriod(x.date));if(!L.length)return"";
+function reimpDash(st){
+  const L=st.reimp;if(!L.length)return"";
   const by={};L.forEach(x=>{const k=pnKey(x.pn);by[k]=by[k]||{pn:x.pn,n:0};by[k].n++});
   const rep=Object.values(by).filter(o=>o.n>1).sort((a,b)=>b.n-a.n);
-  return`<div class="panel stack"><h3>Reimpressões no período</h3><div class="row"><span class="pill acc">${L.length} reimpressões</span><span class="pill nc">${L.filter(x=>x.reincidencia).length} reincidências</span></div>${rep.length?`<div class="small">PNs com perda repetida: ${rep.map(o=>`<span class="mono">${esc(o.pn)}</span> (${o.n}×)`).join(", ")}</div>`:""}</div>`;
+  return`<div class="panel stack"><h3>Reimpressões no período</h3><div class="row"><span class="pill acc">${L.length} reimpressões</span><span class="pill nc">${L.filter(x=>x.reincidencia).length} reincidências</span></div>${rep.length?`<div class="small">PNs com perda repetida no período: ${rep.map(o=>`<span class="mono">${esc(o.pn)}</span> (${o.n}×)`).join(", ")}</div>`:""}</div>`;
 }
-["#dFrom","#dTo","#dTurno"].forEach(s=>$(s).addEventListener("change",renderDash));
-(function initDates(){const t=new Date();const f=new Date(t);f.setDate(f.getDate()-29);$("#dFrom").value=iso(f);$("#dTo").value=iso(t)})();
+/* relatório de email: HTML com estilos inline para colar no Outlook/Gmail */
+function reportHtml(st){
+  const td='style="padding:6px 8px;border:1px solid #d3d8d4;font-size:13px;vertical-align:top"';
+  const th='style="padding:6px 8px;border:1px solid #d3d8d4;background:#1d2421;color:#fff;font-size:12px;text-align:left"';
+  const tbl=(head,rows)=>rows.length?`<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;margin:6px 0 16px">`+`<tr>${head.map(x=>`<th ${th}>${x}</th>`).join("")}</tr>`+rows.map(r=>`<tr>${r.map(c=>`<td ${td}>${c}</td>`).join("")}</tr>`).join("")+`</table>`:`<p style="font-size:13px;color:#5d6863;margin:4px 0 16px">Nenhum registro.</p>`;
+  const h2=t=>`<h3 style="font-family:Arial,sans-serif;font-size:15px;margin:18px 0 4px;color:#1d2421;text-transform:uppercase">${t}</h3>`;
+  const red=t=>`<b style="color:#c43b2f">${t}</b>`;const {R}=st;
+  const kp=[["PNs verificados",R.length],["PNs conformes",(pct(R.length-st.nc.length,R.length)??0)+"%"],["Operadores verificados",st.ops.length],["Operadores não treinados",st.nt.length],["ITs incorretas",st.itBad.length],["Sem assinatura",st.semAss.length],["Cobertura da programação",st.planned?pct(R.length,st.planned)+"%":"–"]];
+  let h=`<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2421;max-width:900px">
+  <div style="background:#1d2421;color:#fff;padding:12px 16px"><div style="font-size:20px;font-weight:bold">RONDA DE ITs · <span style="color:#e0a100">Relatório ${reportKind()}</span></div><div style="font-size:13px;opacity:.85">${periodLabel()}${$("#dTurno").value?" · "+$("#dTurno").value:" · T1, T2 e T3"}</div></div>
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;margin:12px 0"><tr>${kp.map(([l,v])=>`<td style="padding:8px;border:1px solid #d3d8d4;text-align:center"><div style="font-size:22px;font-weight:bold;${/não treinados|incorretas/.test(l)&&+v>0?"color:#c43b2f":""}">${v}</div><div style="font-size:11px;color:#5d6863;text-transform:uppercase">${l}</div></td>`).join("")}</tr></table>`;
+  h+=h2("Zonas (da mais defasada para a menos)")+tbl(["#","Zona","Team leaders","PNs","% conforme","IT incorreta","Op. não treinados","Motivo mais comum"],st.zr.filter(s=>s.tot).map((s,i)=>[i+1,`<b>${esc(s.z.name)}</b>`,esc(leadersLine(s.z)),s.tot,pct(s.tot-s.nc,s.tot)+"%",s.it?red(s.it):0,s.nt?red(s.nt):0,esc(s.top?.[0]||"–")]));
+  h+=h2("Team leaders")+tbl(["#","Team leader","Zona e turno","PNs","% conforme","IT incorreta","Op. não treinados"],st.tlE.map((o,i)=>[i+1,`<b>${esc(o.n)}</b>`,esc([...o.zt].join(", ")),o.tot,pct(o.tot-o.nc,o.tot)+"%",o.it?red(o.it):0,o.nt?red(o.nt):0]));
+  h+=h2(`Operadores não treinados (${st.nt.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Operador"],[...st.nt].sort(ntSort).map(({o,r})=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),red(esc(o.nome||"Não informado"))]));
+  h+=h2(`ITs incorretas (${st.itBad.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Motivo"],[...st.itBad].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))]));
+  if(st.reimp.length)h+=h2(`Reimpressões (${st.reimp.length})`)+tbl(["Data","PN","Solicitante","Zona / máquina","Ocorrência"],st.reimp.map(x=>[fmtD(x.date),esc(x.pn),esc(x.solicitante),esc((zoneById(x.zona)?.name||"–")+(x.maq?" · "+x.maq:"")),x.reincidencia?red("Reincidência "+x.ocorrencia+"ª"):"1ª"]));
+  h+=`<p style="font-size:11px;color:#5d6863;margin-top:18px">Gerado pelo sistema Ronda de ITs em ${fmtDT(Date.now())}.</p></div>`;
+  return h;
+}
+function reportText(st){
+  const {R}=st;const L=[`RONDA DE ITs - Relatório ${reportKind()} - ${periodLabel()}`,"",`PNs verificados: ${R.length} (${pct(R.length-st.nc.length,R.length)??0}% conformes)`,`Operadores verificados: ${st.ops.length} | Não treinados: ${st.nt.length}`,`ITs incorretas: ${st.itBad.length} | Sem assinatura: ${st.semAss.length}`,"","Zonas mais defasadas:"];
+  st.zr.filter(s=>s.tot).forEach((s,i)=>L.push(`${i+1}. ${s.z.name}: ${pct(s.tot-s.nc,s.tot)}% conforme, ${s.nt} op. não treinados, ${s.it} ITs incorretas`));
+  if(st.nt.length){L.push("","Operadores não treinados:");[...st.nt].sort(ntSort).slice(0,25).forEach(({o,r})=>L.push(`- ${fmtD(r.date)} ${r.turno} ${zoneById(zoneOf(r.bloco))?.name||""} (TL ${tlOf(r)||"-"}) ${r.maq} PN ${r.pn}: ${o.nome||"não informado"}`))}
+  return L.join("\n");
+}
+async function copyRich(html,text){
+  try{if(window.ClipboardItem&&navigator.clipboard?.write){await navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([html],{type:"text/html"}),"text/plain":new Blob([text],{type:"text/plain"})})]);return true}}catch(e){}
+  try{await navigator.clipboard.writeText(text);return"text"}catch(e){return false}
+}
+const standalone=!window.claude;
+function printHtml(title,html){const w=window.open("","_blank");if(!w){toast("Libere pop-ups para imprimir");return}w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4 landscape;margin:12mm}body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>${html}</body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print()},300)}
+$("#dPer").addEventListener("change",()=>{setPeriod($("#dPer").value);store("ronda:per",$("#dPer").value);renderDash()});
+["#dFrom","#dTo"].forEach(s=>$(s).addEventListener("change",()=>{$("#dPer").value="custom";renderDash()}));
+$("#dTurno").addEventListener("change",renderDash);
+{const p=store("ronda:per")||"hoje";$("#dPer").value=p;setPeriod(p==="custom"?"hoje":p)}
+$("#dCopy").addEventListener("click",async()=>{const st=computeStats();const ok=await copyRich(reportHtml(st),reportText(st));toast(ok===true?"Relatório copiado. Cole no corpo do email.":ok==="text"?"Resumo em texto copiado":"Não foi possível copiar nesta visualização")});
+$("#dMail").addEventListener("click",async()=>{const st=computeStats();await copyRich(reportHtml(st),reportText(st));
+  const subj=`Ronda de ITs - Relatório ${reportKind()} - ${periodLabel()}`;
+  const body=reportText(st).slice(0,1500)+"\n\n(Relatório completo copiado: cole aqui com Ctrl+V)";
+  location.href=`mailto:${encodeURIComponent((S.cfg.emails||[]).join(","))}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+  toast("Relatório copiado. Cole no email com Ctrl+V");});
+$("#dPrint").hidden=!standalone;
+$("#dPrint").addEventListener("click",()=>printHtml("Ronda de ITs - "+periodLabel(),reportHtml(computeStats())));
 $("#dExport").addEventListener("click",async()=>{
   const R=filteredRonda().sort((a,b)=>a.ts-b.ts);
-  const rows=[["Data","Turno","Zona","Team leader","Bloco","Máquina","PN","Operador treinado","IT correta","Motivos","Observação","Operador","Registrado em"]].concat(R.map(r=>{const z=zoneById(zoneOf(r.bloco));return[fmtD(r.date),r.turno,z?.name||"",tlOf(r),r.bloco,r.maq,r.pn,r.treinado?"Sim":"Não",r.itOk?"Sim":"Não",(r.motivos||[]).join(" | "),r.obs||"",r.operador||"",fmtDT(r.ts)]}));
-  const csv="﻿"+rows.map(r=>r.map(c=>{c=String(c??"");return/[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(";")).join("\r\n");
-  let dl=null;try{dl=await window.claude?.use?.("downloads")}catch(e){}
-  const fname=`ronda-its_${$("#dFrom").value}_a_${$("#dTo").value}.csv`;
-  if(!dl&&!window.claude){const u=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const l=document.createElement("a");l.href=u;l.download=fname;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);return}
-  if(!dl){toast("Exportação indisponível nesta visualização");return}
-  try{await dl.save({filename:`ronda-its_${$("#dFrom").value}_a_${$("#dTo").value}.csv`,data:csv})}catch(e){toast("Exportação cancelada")}
+  const rows=[["Data","Turno","Zona","Team leader","Bloco","Máquina","PN","Operador","Operador treinado","Assinou","IT correta","Motivos","Observação","Registrado em"]];
+  R.forEach(r=>{const z=zoneById(zoneOf(r.bloco));opsOf(r).forEach(o=>rows.push([fmtD(r.date),r.turno,z?.name||"",tlOf(r),r.bloco,r.maq,r.pn,o.nome||"",o.treinado?"Sim":"Não",o.assinado?"Sim":"Não",r.itOk?"Sim":"Não",(r.motivos||[]).join(" | "),r.obs||"",fmtDT(r.ts)]))});
+  await saveCsv(rows,`ronda-its_${$("#dFrom").value}_a_${$("#dTo").value}.csv`);
 });
+async function saveCsv(rows,fname){
+  const csv="﻿"+rows.map(r=>r.map(c=>{c=String(c??"");return/[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(";")).join("\r\n");
+  if(standalone){const u=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const l=document.createElement("a");l.href=u;l.download=fname;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);return}
+  let dl=null;try{dl=await window.claude?.use?.("downloads")}catch(e){}
+  if(!dl){toast("Exportação indisponível nesta visualização");return}
+  try{await dl.save({filename:fname,data:csv})}catch(e){toast("Exportação cancelada")}
+}
+
+/* ---------- CONSULTA (auditoria) ---------- */
+function renderCons(){
+  const pn=$("#cPn").value.trim(),f=$("#cFrom").value,t=$("#cTo").value,tu=$("#cTurno").value;const B=$("#cBody");
+  if(!pn){B.innerHTML=`<div class="empty"><h3>Pesquise um PN</h3><p>Mostra em quais máquinas a peça rodou, os operadores treinados de cada turno com assinatura e o histórico das rondas. Coloque uma data para ver o relatório daquele dia.</p></div>`;return}
+  const k=pnKey(pn);const inP=d=>(!f||d>=f)&&(!t||d<=t);
+  const R=Object.values(S.ronda).filter(r=>pnKey(r.pn)===k&&inP(r.date)&&(!tu||r.turno===tu)).sort((a,b)=>b.date.localeCompare(a.date)||a.turno.localeCompare(b.turno));
+  const runs={};Object.values(S.prog).forEach(p=>{if(!inP(p.date))return;p.items.forEach(it=>{if(pnKey(it.pn)!==k)return;["T1","T2","T3"].forEach(T=>{if(!it.turnos[T]||(tu&&tu!==T))return;runs[it.maq]=runs[it.maq]||{dias:new Set(),turnos:new Set(),last:""};const o=runs[it.maq];o.dias.add(p.date);o.turnos.add(T);if(p.date>o.last)o.last=p.date})})});
+  R.forEach(r=>{runs[r.maq]=runs[r.maq]||{dias:new Set(),turnos:new Set(),last:""};const o=runs[r.maq];o.dias.add(r.date);o.turnos.add(r.turno);if(r.date>o.last)o.last=r.date});
+  const per=f||t?(f===t?fmtD(f):`${f?fmtD(f):"início"} a ${t?fmtD(t):"hoje"}`):"todo o histórico";
+  const ops={T1:{},T2:{},T3:{}};
+  [...R].reverse().forEach(r=>opsOf(r).forEach(o=>{const n=norm(o.nome)||"(SEM NOME)";ops[r.turno][n]={nome:o.nome||"Não informado",treinado:o.treinado,date:r.date,maq:r.maq,sid:o.sid,assinado:o.assinado,vezes:((ops[r.turno][n]||{}).vezes||0)+1}}));
+  let h=`<div class="panel stack"><div class="row" style="justify-content:space-between"><div><h2 class="mono" style="font-family:var(--f-mono);text-transform:none">${esc(pn)}</h2><div class="small muted">Período: ${per}${tu?" · "+tu:""} · ${R.length} ${R.length===1?"ronda":"rondas"}</div></div><div class="row"><button class="btn ghost" id="cCsv">Exportar CSV</button>${standalone?`<button class="btn ghost" id="cPrint">Imprimir / PDF</button>`:""}</div></div></div>`;
+  const mk=Object.entries(runs).sort((a,b)=>b[1].last.localeCompare(a[1].last));
+  h+=`<div class="panel stack"><h3>Máquinas em que rodou</h3>${mk.length?`<div class="tbl-wrap"><table><thead><tr><th>Máquina</th><th class="num">Dias</th><th>Turnos</th><th>Última vez</th></tr></thead><tbody>${mk.map(([m,o])=>`<tr><td><b>${esc(m)}</b></td><td class="num">${o.dias.size}</td><td>${[...o.turnos].sort().join(", ")}</td><td>${fmtD(o.last)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted small" style="margin:0">Esse PN não aparece nas programações salvas deste período.</p>`}</div>`;
+  h+=`<div class="panel stack"><h3>Operadores por turno</h3><div class="opcols">${["T1","T2","T3"].filter(T=>!tu||tu===T).map(T=>{const L=Object.values(ops[T]).sort((a,b)=>(b.treinado-a.treinado)||a.nome.localeCompare(b.nome));return`<div class="stack" style="gap:8px"><h3 style="border-bottom:2px solid var(--ink);padding-bottom:3px">${T} <span class="small muted">· ${L.filter(o=>o.treinado).length} treinados</span></h3>${L.length?L.map(o=>`<div class="opcard ${o.treinado?"":"bad"}"><div class="row" style="justify-content:space-between"><b>${esc(o.nome)}</b>${o.treinado?`<span class="pill ok">Treinado</span>`:`<span class="pill nc">Não treinado</span>`}</div><div class="small muted">Última ronda ${fmtD(o.date)} · ${esc(o.maq)}${o.vezes>1?" · "+o.vezes+" registros":""}</div>${o.sid?`<img class="sigimg" data-sid="${esc(o.sid)}" alt="Assinatura de ${esc(o.nome)}">`:`<span class="small" style="color:var(--warn)">Sem assinatura</span>`}</div>`).join(""):`<p class="small muted" style="margin:0">Nenhum operador registrado.</p>`}</div>`}).join("")}</div></div>`;
+  h+=`<div class="panel stack"><h3>Histórico das rondas</h3>${R.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Máquina</th><th>Zona / TL</th><th>Operador</th><th>Treinado</th><th>Assinatura</th><th>IT</th></tr></thead><tbody>`+
+    R.flatMap(r=>opsOf(r).map((o,i)=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(r.maq)}</td><td class="small">${esc(zoneById(zoneOf(r.bloco))?.name||"")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td><b>${esc(o.nome||"Não informado")}</b></td><td>${o.treinado?`<span class="pill ok">Sim</span>`:`<span class="pill nc">Não</span>`}</td><td>${o.sid?`<img class="sigimg sm" data-sid="${esc(o.sid)}" alt="Assinatura">`:`<span class="pill warn">Sem</span>`}</td><td>${i?"":r.itOk?`<span class="pill ok">OK</span>`:`<span class="pill nc">Incorreta</span><br><span class="small muted">${esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))}</span>`}</td></tr>`)).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Nenhuma ronda registrada para este PN no período.</p>`}</div>`;
+  B.innerHTML=h;fillSigs(B);
+  $("#cCsv")?.addEventListener("click",()=>{const rows=[["Data","Turno","Máquina","Zona","Team leader","PN","Operador","Treinado","Assinou","IT correta","Motivos"]];R.forEach(r=>opsOf(r).forEach(o=>rows.push([fmtD(r.date),r.turno,r.maq,zoneById(zoneOf(r.bloco))?.name||"",tlOf(r),r.pn,o.nome||"",o.treinado?"Sim":"Não",o.assinado?"Sim":"Não",r.itOk?"Sim":"Não",[...(r.motivos||[]),r.obs].filter(Boolean).join(" | ")])));saveCsv(rows,`consulta_${slug(pn)}.csv`)});
+  $("#cPrint")?.addEventListener("click",async()=>{await fillSigs(B);const c=B.cloneNode(true);c.querySelectorAll("button").forEach(b=>b.remove());printHtml("Consulta "+pn,`<style>${document.querySelector("style").textContent}</style><div class="wrap">${c.innerHTML}</div>`)});
+}
+async function fillSigs(root){
+  const imgs=[...root.querySelectorAll("img[data-sid]")];const need=[...new Set(imgs.map(i=>i.dataset.sid).filter(s=>!S.sigCache[s]))];
+  if(need.length){try{Object.assign(S.sigCache,await getSigs(need))}catch(e){}}
+  imgs.forEach(i=>{const v=S.sigCache[i.dataset.sid];if(v)i.src=v;else i.replaceWith(Object.assign(document.createElement("span"),{className:"small muted",textContent:"assinatura indisponível"}))});
+}
+let consT;["#cPn","#cFrom","#cTo","#cTurno"].forEach(s=>$(s).addEventListener("input",()=>{clearTimeout(consT);consT=setTimeout(renderCons,250)}));
+$("#cClear").addEventListener("click",()=>{$("#cFrom").value="";$("#cTo").value="";renderCons()});
 
 /* ---------- REIMPRESSÃO ---------- */
 function reimpHist(pn){const k=pnKey(pn);return Object.values(S.reimp).filter(x=>pnKey(x.pn)===k).sort((a,b)=>b.ts-a.ts)}
@@ -572,7 +780,6 @@ $("#reForm").addEventListener("submit",async e=>{
 $("#reFilter").addEventListener("input",renderReimp);
 function renderReimp(){
   zoneOptions($("#reZona"),true,"Não sei");
-  $("#pnList").innerHTML=[...new Set(Object.values(S.prog).flatMap(p=>p.items.map(i=>i.pn)))].map(p=>`<option value="${esc(p)}">`).join("");
   const q=norm($("#reFilter").value);
   const L=Object.entries(S.reimp).sort((a,b)=>b[1].ts-a[1].ts).filter(([,x])=>!q||norm(x.pn+" "+x.solicitante+" "+(x.maq||"")).includes(q));
   $("#reList").innerHTML=L.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>PN</th><th>Solicitante</th><th>Zona / máquina</th><th></th></tr></thead><tbody>`+L.map(([id,x])=>`<tr><td>${fmtDT(x.ts)}</td><td class="mono">${esc(x.pn)}</td><td>${esc(x.solicitante)}${x.obs?`<br><span class="small muted">${esc(x.obs)}</span>`:""}</td><td>${esc(zoneById(x.zona)?.name||"–")}${x.maq?" · "+esc(x.maq):""}</td><td>${x.reincidencia?`<span class="pill nc">Reincidência ${x.ocorrencia}ª</span>`:`<span class="pill">1ª</span>`}</td></tr>`).join("")+`</tbody></table></div>`:`<div class="empty">${q?"Nada encontrado para este filtro.":"Nenhuma reimpressão registrada ainda. Use o formulário ao lado quando alguém pedir uma IT perdida."}</div>`;
@@ -639,21 +846,51 @@ function renderCfg(force){
   const blocks=[...new Set([...Object.keys(c.blockMap),...Object.values(S.prog).flatMap(p=>p.blocks||[])])];
   $("#blockEdit").innerHTML=blocks.map(b=>`<label class="f">${esc(b)}<select data-block="${esc(b)}"><option value="">Sem zona</option>${c.zones.map(z=>`<option value="${esc(z.id)}" ${c.blockMap[b]===z.id?"selected":""}>${esc(z.name)}</option>`).join("")}</select></label>`).join("");
   $("#blockEdit").className="grid2";
-  if(document.activeElement!==$("#motivosEdit"))$("#motivosEdit").value=c.motivos.join("\n");
+  if(document.activeElement!==$("#motivosEdit"))$("#motivosEdit").value=c.motivos.join("\n");if(document.activeElement!==$("#mailsEdit"))$("#mailsEdit").value=(c.emails||[]).join("\n");
 }
 $("#zoneEdit").addEventListener("input",e=>{const r=e.target.closest("[data-zi]");if(r){const z=cfgDraft.zones[+r.dataset.zi],f=e.target.dataset.zf;if(f==="name")z.name=e.target.value;else{z.leaders=z.leaders||{};z.leaders[f]=e.target.value}}});
 $("#blockEdit").addEventListener("change",e=>{if(e.target.dataset.block)cfgDraft.blockMap[e.target.dataset.block]=e.target.value});
 $("#addZone").addEventListener("click",()=>{const n=cfgDraft.zones.length+1;cfgDraft.zones.push({id:"z"+Date.now().toString(36),name:"Zona "+n,leaders:{}});renderCfg()});
 $("#saveCfg").addEventListener("click",async()=>{
-  cfgDraft.motivos=$("#motivosEdit").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  cfgDraft.motivos=$("#motivosEdit").value.split("\n").map(s=>s.trim()).filter(Boolean);cfgDraft.emails=$("#mailsEdit").value.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
   try{await put("config","main",cfgDraft);toast("Ajustes salvos");cfgDraft=null}catch(err){toast(err.code==="invalid_argument"?"Você não tem permissão para alterar os ajustes":"Não salvou ("+(err.code||err.message)+")")}
 });
 
 /* ---------- render ---------- */
+/* ---------- cadastro manual ---------- */
+function allBlocks(){return[...new Set([...Object.keys(S.cfg.blockMap),...Object.values(S.prog).flatMap(p=>p.blocks||[])])]}
+$("#manToggle").addEventListener("click",()=>{const f=$("#manForm");f.hidden=!f.hidden;if(!f.hidden){
+  $("#mDate").value=$("#rDate").value||today();
+  $("#mBloco").innerHTML=allBlocks().map(b=>`<option value="${esc(b)}">${esc(zoneById(zoneOf(b))?.name||"Sem zona")} · ${esc(b)}</option>`).join("");
+  ["T1","T2","T3"].forEach(T=>$("#m"+T).checked=T===$("#rTurno").value);$("#mMaq").focus()}});
+$("#manCancel").addEventListener("click",()=>{$("#manForm").hidden=true});
+$("#mMaq").addEventListener("change",()=>{const m=norm($("#mMaq").value);for(const p of Object.values(S.prog)){const it=p.items.find(i=>norm(i.maq)===m);if(it){$("#mBloco").value=it.bloco;break}}});
+$("#manForm").addEventListener("submit",async e=>{
+  e.preventDefault();const date=$("#mDate").value,maq=$("#mMaq").value.trim(),pn=$("#mPn").value.trim(),bloco=$("#mBloco").value;
+  const turnos={T1:$("#mT1").checked,T2:$("#mT2").checked,T3:$("#mT3").checked};if(!turnos.T1&&!turnos.T2&&!turnos.T3){toast("Marque pelo menos um turno");return}
+  const n=Math.max(1,+$("#mMod").value||1);
+  const p=S.prog[date]?JSON.parse(JSON.stringify(S.prog[date])):{date,file:"Cadastro manual",items:[],blocks:[],uploaded:Date.now()};
+  const base=slug(maq)+"_"+slug(pn);let k=base,i=2;while(p.items.some(x=>x.k===k))k=base+"_"+(i++);
+  const ex=p.items.find(x=>norm(x.maq)===norm(maq)&&pnKey(x.pn)===pnKey(pn));
+  if(ex){["T1","T2","T3"].forEach(T=>{if(turnos[T]){ex.turnos[T]=true;ex.mod=ex.mod||{};ex.mod[T]=ex.mod[T]||n}})}
+  else p.items.push({maq,pn,bloco,turnos,mod:{T1:turnos.T1?n:0,T2:turnos.T2?n:0,T3:turnos.T3?n:0},obs:"Cadastro manual",manual:true,k});
+  if(!p.blocks.includes(bloco))p.blocks.push(bloco);
+  try{await put("programacao",date,p);toast(ex?"PN já estava na programação: turnos atualizados":"PN adicionado à ronda");$("#manForm").reset();$("#manForm").hidden=true;store("ronda:date",date);$("#rDate").value=date;renderRonda()}
+  catch(err){toast("Não salvou ("+(err.code||err.message)+")")}
+});
+function fillLists(){
+  const ops=new Set(),maqs=new Set();Object.values(S.ronda).forEach(r=>opsOf(r).forEach(o=>o.nome&&ops.add(o.nome)));Object.values(S.prog).forEach(p=>p.items.forEach(i=>maqs.add(i.maq)));
+  const sig=ops.size+"|"+maqs.size;if(fillLists.sig===sig)return;fillLists.sig=sig;
+  $("#opList").innerHTML=[...ops].sort().map(n=>`<option value="${esc(n)}">`).join("");
+  $("#maqList").innerHTML=[...maqs].sort().map(n=>`<option value="${esc(n)}">`).join("");
+  $("#pnList").innerHTML=[...new Set(Object.values(S.prog).flatMap(p=>p.items.map(i=>i.pn)))].map(p=>`<option value="${esc(p)}">`).join("");
+}
 function render(){
   const t=store("ronda:tab")||"ronda";
   if(t==="ronda")renderRonda();
   if(t==="dash")renderDash();
+  if(t==="cons")renderCons();
+  fillLists();
   if(t==="reimp"){renderReimp();renderReCheck()}
   if(t==="prog")renderProgList();
   if(t==="ajustes"){const a=document.activeElement;if(!a||!$("#v-ajustes").contains(a))renderCfg()}
