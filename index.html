@@ -137,6 +137,9 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 .drop{border:2px dashed var(--line);border-radius:8px;padding:22px;text-align:center;cursor:pointer;background:var(--panel)}
 .drop.over{border-color:var(--accent);background:var(--accent-soft)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:600;z-index:20;max-width:90vw}
+.seg3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.seg3 button{min-height:46px;font-family:var(--f-display);font-size:20px;font-weight:700;letter-spacing:.06em;border:2px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;cursor:pointer}
+.seg3 button.on{border-color:var(--accent);background:var(--accent-soft)}
 .ops{display:flex;flex-direction:column;gap:10px}
 .op{border:1px solid var(--line);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
 .linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:4px}
@@ -231,7 +234,8 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="split">
       <form class="panel stack" id="reForm" autocomplete="off">
         <h2>Registrar reimpressão</h2>
-        <label class="f">PN a reimprimir<input id="rePn" class="mono" required placeholder="ex.: 10001055914" list="pnList"></label>
+        <div class="q"><span class="small muted" style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Tipo de documento</span><div class="seg3" id="reTipo"><button type="button" data-tipo="FT">FT</button><button type="button" data-tipo="IT" class="on">IT</button><button type="button" data-tipo="LO">LO</button></div></div>
+        <label class="f">PN / código do documento<input id="rePn" class="mono" required placeholder="ex.: 10001055914" list="pnList"></label>
         <datalist id="pnList"></datalist>
         <div id="reCheck"></div>
         <label class="f">Solicitante<input id="reSol" required placeholder="Nome de quem pediu"></label>
@@ -665,9 +669,9 @@ function renderDash(){
 }
 function reimpDash(st){
   const L=st.reimp;if(!L.length)return"";
-  const by={};L.forEach(x=>{const k=pnKey(x.pn);by[k]=by[k]||{pn:x.pn,n:0};by[k].n++});
+  const by={};L.forEach(x=>{const k=tipoOf(x)+"|"+pnKey(x.pn);by[k]=by[k]||{pn:tipoOf(x)+" "+x.pn,n:0};by[k].n++});
   const rep=Object.values(by).filter(o=>o.n>1).sort((a,b)=>b.n-a.n);
-  return`<div class="panel stack"><h3>Reimpressões no período</h3><div class="row"><span class="pill acc">${L.length} reimpressões</span><span class="pill nc">${L.filter(x=>x.reincidencia).length} reincidências</span></div>${rep.length?`<div class="small">PNs com perda repetida no período: ${rep.map(o=>`<span class="mono">${esc(o.pn)}</span> (${o.n}×)`).join(", ")}</div>`:""}</div>`;
+  return`<div class="panel stack"><h3>Reimpressões no período</h3><div class="row"><span class="pill acc">${L.length} reimpressões</span><span class="pill nc">${L.filter(x=>x.reincidencia).length} reincidências</span></div>${rep.length?`<div class="small">Documentos com perda repetida no período: ${rep.map(o=>`<span class="mono">${esc(o.pn)}</span> (${o.n}×)`).join(", ")}</div>`:""}</div>`;
 }
 /* relatório de email: HTML com estilos inline para colar no Outlook/Gmail */
 function reportHtml(st){
@@ -684,7 +688,7 @@ function reportHtml(st){
   h+=h2("Team leaders")+tbl(["#","Team leader","Zona e turno","PNs","% conforme","IT incorreta","Op. não treinados"],st.tlE.map((o,i)=>[i+1,`<b>${esc(o.n)}</b>`,esc([...o.zt].join(", ")),o.tot,pct(o.tot-o.nc,o.tot)+"%",o.it?red(o.it):0,o.nt?red(o.nt):0]));
   h+=h2(`Operadores não treinados (${st.nt.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Operador"],[...st.nt].sort(ntSort).map(({o,r})=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),red(esc(o.nome||"Não informado"))]));
   h+=h2(`ITs incorretas (${st.itBad.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Motivo"],[...st.itBad].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))]));
-  if(st.reimp.length)h+=h2(`Reimpressões (${st.reimp.length})`)+tbl(["Data","PN","Solicitante","Assinou","Zona / máquina","Ocorrência"],st.reimp.map(x=>[fmtD(x.date),esc(x.pn),esc(x.solicitante),x.sid?"Sim":"Não",esc((zoneById(x.zona)?.name||"–")+(x.maq?" · "+x.maq:"")),x.reincidencia?red("Reincidência "+x.ocorrencia+"ª"):"1ª"]));
+  if(st.reimp.length)h+=h2(`Reimpressões (${st.reimp.length})`)+tbl(["Data","Doc.","PN","Solicitante","Assinou","Zona / máquina","Ocorrência"],st.reimp.map(x=>[fmtD(x.date),tipoOf(x),esc(x.pn),esc(x.solicitante),x.sid?"Sim":"Não",esc((zoneById(x.zona)?.name||"–")+(x.maq?" · "+x.maq:"")),x.reincidencia?red("Reincidência "+x.ocorrencia+"ª"):"1ª"]));
   h+=`<p style="font-size:11px;color:#5d6863;margin-top:18px">Gerado pelo sistema Ronda de ITs em ${fmtDT(Date.now())}.</p></div>`;
   return h;
 }
@@ -756,13 +760,16 @@ let consT;["#cPn","#cFrom","#cTo","#cTurno"].forEach(s=>$(s).addEventListener("i
 $("#cClear").addEventListener("click",()=>{$("#cFrom").value="";$("#cTo").value="";renderCons()});
 
 /* ---------- REIMPRESSÃO ---------- */
-function reimpHist(pn){const k=pnKey(pn);return Object.values(S.reimp).filter(x=>pnKey(x.pn)===k).sort((a,b)=>b.ts-a.ts)}
+const tipoOf=x=>x.tipo||"IT";
+let reTipo="IT";
+function reimpHist(pn,tipo){const k=pnKey(pn);return Object.values(S.reimp).filter(x=>pnKey(x.pn)===k&&tipoOf(x)===tipo).sort((a,b)=>b.ts-a.ts)}
+$("#reTipo").addEventListener("click",e=>{const b=e.target.closest("[data-tipo]");if(!b)return;reTipo=b.dataset.tipo;document.querySelectorAll("#reTipo button").forEach(x=>x.classList.toggle("on",x===b));renderReCheck()});
 function lookupPn(pn){const k=pnKey(pn);for(const d of progDates()){const it=S.prog[Object.keys(S.prog).find(id=>S.prog[id].date===d)].items.find(i=>pnKey(i.pn)===k);if(it)return it}return null}
 function renderReCheck(){
   const pn=$("#rePn").value;const box=$("#reCheck");if(!pn.trim()){box.innerHTML="";$("#reSave").textContent="Registrar reimpressão";return}
-  const h=reimpHist(pn);const it=lookupPn(pn);
+  const h=reimpHist(pn,reTipo);const it=lookupPn(pn);
   if(it){if(!$("#reMaq").dataset.touched)$("#reMaq").value=it.maq;if(!$("#reZona").dataset.touched&&zoneOf(it.bloco))$("#reZona").value=zoneOf(it.bloco)}
-  box.innerHTML=h.length?`<div class="notice nc"><b>Reincidência de perda de documento.</b> Este PN já foi reimpresso ${h.length} ${h.length>1?"vezes":"vez"}. Última: ${fmtD(h[0].date)}, pedida por ${esc(h[0].solicitante)}.</div>`:`<div class="notice ok">Primeira reimpressão registrada para este PN.${it?" Máquina na programação: "+esc(it.maq)+".":""}</div>`;
+  box.innerHTML=h.length?`<div class="notice nc"><b>Atenção: ${reTipo} já reimpressa. Reincidência de perda de documento.</b><br>A ${reTipo} deste PN já foi reimpressa ${h.length} ${h.length>1?"vezes":"vez"}:<br>${h.slice(0,5).map(x=>`· ${fmtD(x.date)}, pedida por ${esc(x.solicitante)}${x.maq?" ("+esc(x.maq)+")":""}`).join("<br>")}</div>`:`<div class="notice ok">Primeira reimpressão da ${reTipo} deste PN.${it?" Máquina na programação: "+esc(it.maq)+".":""}</div>`;
   $("#reSave").textContent=h.length?"Registrar reincidência":"Registrar reimpressão";
 }
 $("#rePn").addEventListener("input",renderReCheck);
@@ -772,24 +779,30 @@ function reSigBtn(){const b=$("#reSig");b.classList.toggle("signed",!!reSigImg);
 $("#reSig").addEventListener("click",async()=>{const img=await signPad($("#reSol").value.trim());if(img){reSigImg=img;reSigBtn()}});
 $("#reForm").addEventListener("submit",async e=>{
   e.preventDefault();const pn=$("#rePn").value.trim(),sol=$("#reSol").value.trim();if(!pn||!sol)return;
-  const prev=reimpHist(pn);const now=Date.now();
-  const rec={pn,pnKey:pnKey(pn),solicitante:sol,zona:$("#reZona").value,maq:$("#reMaq").value.trim(),obs:$("#reObs").value.trim(),date:today(),ts:now,reincidencia:prev.length>0,ocorrencia:prev.length+1};
-  const rid=now.toString(36)+"-"+slug(pn);
+  const prev=reimpHist(pn,reTipo);const now=Date.now();
+  const rec={pn,pnKey:pnKey(pn),tipo:reTipo,solicitante:sol,zona:$("#reZona").value,maq:$("#reMaq").value.trim(),obs:$("#reObs").value.trim(),date:today(),ts:now,reincidencia:prev.length>0,ocorrencia:prev.length+1};
+  const rid=now.toString(36)+"-"+reTipo+"-"+slug(pn);
   if(reSigImg){rec.sid="reimp_"+rid;rec.assinado=true}
   $("#reSave").disabled=true;
   try{if(reSigImg){await put("assinatura",rec.sid,{img:reSigImg,nome:sol,date:rec.date,pn,tipo:"reimpressao",ts:now});S.sigCache[rec.sid]=reSigImg}
     await put("reimpressao",rid,rec);
-    toast(rec.reincidencia?`Reincidência registrada: ${rec.ocorrencia}ª reimpressão deste PN`:"Reimpressão registrada");
+    toast(rec.reincidencia?`Reincidência registrada: ${rec.ocorrencia}ª reimpressão da ${reTipo} deste PN`:"Reimpressão registrada");
     $("#reForm").reset();reSigImg=null;reSigBtn();delete $("#reMaq").dataset.touched;delete $("#reZona").dataset.touched;renderReCheck();
   }catch(err){toast(err.code==="invalid_argument"?"Você não tem permissão para gravar nesta página":"Não salvou ("+(err.code||err.message)+")")}
   $("#reSave").disabled=false;
 });
 $("#reFilter").addEventListener("input",renderReimp);
+let reDelArm=null;
+$("#reList").addEventListener("click",async e=>{const b=e.target.closest("[data-redel]");if(!b)return;const id=b.dataset.redel;
+  if(reDelArm!==id){reDelArm=id;renderReimp();setTimeout(()=>{if(reDelArm===id){reDelArm=null;renderReimp()}},5000);return}
+  reDelArm=null;const x=S.reimp[id];
+  try{await del("reimpressao",id);if(x&&x.sid){try{await del("assinatura",x.sid)}catch(_){}}toast("Registro de reimpressão apagado");renderReimp();renderReCheck()}
+  catch(err){toast("Não foi possível apagar ("+(err.code||err.message)+")")}});
 function renderReimp(){
   zoneOptions($("#reZona"),true,"Não sei");
   const q=norm($("#reFilter").value);
-  const L=Object.entries(S.reimp).sort((a,b)=>b[1].ts-a[1].ts).filter(([,x])=>!q||norm(x.pn+" "+x.solicitante+" "+(x.maq||"")).includes(q));
-  $("#reList").innerHTML=L.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>PN</th><th>Solicitante</th><th>Zona / máquina</th><th></th></tr></thead><tbody>`+L.map(([id,x])=>`<tr><td>${fmtDT(x.ts)}</td><td class="mono">${esc(x.pn)}</td><td>${esc(x.solicitante)}${x.obs?`<br><span class="small muted">${esc(x.obs)}</span>`:""}${x.sid?`<br><img class="sigimg sm" data-sid="${esc(x.sid)}" alt="Assinatura de ${esc(x.solicitante)}">`:`<br><span class="small" style="color:var(--warn)">Sem assinatura</span>`}</td><td>${esc(zoneById(x.zona)?.name||"–")}${x.maq?" · "+esc(x.maq):""}</td><td>${x.reincidencia?`<span class="pill nc">Reincidência ${x.ocorrencia}ª</span>`:`<span class="pill">1ª</span>`}</td></tr>`).join("")+`</tbody></table></div>`:`<div class="empty">${q?"Nada encontrado para este filtro.":"Nenhuma reimpressão registrada ainda. Use o formulário ao lado quando alguém pedir uma IT perdida."}</div>`;
+  const L=Object.entries(S.reimp).sort((a,b)=>b[1].ts-a[1].ts).filter(([,x])=>!q||norm(tipoOf(x)+" "+x.pn+" "+x.solicitante+" "+(x.maq||"")).includes(q));
+  $("#reList").innerHTML=L.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Doc.</th><th>PN</th><th>Solicitante</th><th>Zona / máquina</th><th></th><th></th></tr></thead><tbody>`+L.map(([id,x])=>`<tr><td>${fmtDT(x.ts)}</td><td><span class="pill acc">${tipoOf(x)}</span></td><td class="mono">${esc(x.pn)}</td><td>${esc(x.solicitante)}${x.obs?`<br><span class="small muted">${esc(x.obs)}</span>`:""}${x.sid?`<br><img class="sigimg sm" data-sid="${esc(x.sid)}" alt="Assinatura de ${esc(x.solicitante)}">`:`<br><span class="small" style="color:var(--warn)">Sem assinatura</span>`}</td><td>${esc(zoneById(x.zona)?.name||"–")}${x.maq?" · "+esc(x.maq):""}</td><td>${x.reincidencia?`<span class="pill nc">Reincidência ${x.ocorrencia}ª</span>`:`<span class="pill">1ª</span>`}</td><td><button type="button" class="linkbtn" data-redel="${esc(id)}">${reDelArm===id?"Confirmar exclusão":"Apagar"}</button></td></tr>`).join("")+`</tbody></table></div>`:`<div class="empty">${q?"Nada encontrado para este filtro.":"Nenhuma reimpressão registrada ainda. Use o formulário ao lado quando alguém pedir um documento perdido."}</div>`;
   fillSigs($("#reList"));
 }
 
