@@ -473,19 +473,30 @@ function fillDateSel(){
   if(ds.includes(v))sel.value=v;else if(ds.includes(today()))sel.value=today();else if(ds.length)sel.value=ds[0];
 }
 function rondaId(date,turno,k){return date+"_"+turno+"_"+k}
+/* PNs da mesma máquina no mesmo turno = mesmo molde (PN duplo): viram uma linha só na ronda.
+   Máquinas A/B (17A, 17B, 19A...) já têm nomes diferentes e continuam separadas. Bancadas MONT não são agrupadas, e um PN que entra por troca de molde (obs com TROCA) não se junta ao PN que sai. */
+const NO_MERGE=/^MONT$/;
+function rondaItems(p,turno){
+  const run=p.items.filter(it=>it.turnos&&it.turnos[turno]);const out=[];const byM={};
+  run.forEach(it=>{const mm=norm(it.maq);if(NO_MERGE.test(mm)){out.push(it);return}const tr=/TROCA/.test(norm(it.obs))?norm(it.obs):"";const m=mm+"|"+tr;
+    if(!byM[m]){byM[m]={maq:it.maq,bloco:it.bloco,list:[]};out.push(byM[m])}byM[m].list.push(it)});
+  return out.map(g=>{if(!g.list)return g;if(g.list.length===1)return g.list[0];const L=g.list;
+    return{maq:g.maq,bloco:g.bloco,pn:L.map(i=>i.pn).join(" + "),pns:L.map(i=>i.pn),k:L.map(i=>i.k).join("+"),turnos:{[turno]:true},
+      mod:{[turno]:L.reduce((a,i)=>a+(+(i.mod&&i.mod[turno])||0),0)},obs:[...new Set(L.map(i=>i.obs).filter(Boolean))].join(" · "),merged:true}});
+}
 function renderRonda(){
   fillDateSel();zoneOptions($("#rZona"),true);
   const date=$("#rDate").value,turno=$("#rTurno").value,zf=$("#rZona").value,show=$("#rShow").value;
   const p=S.prog[date];const L=$("#rList");
   if(!p){L.innerHTML=`<div class="empty"><h3>Nenhuma programação carregada</h3><p>Suba a planilha do dia na aba <b>Programação</b> para começar a ronda. As máquinas e PNs aparecem aqui, separados por zona.</p></div>`;$("#rSummary").innerHTML="";return}
-  let items=p.items.filter(it=>it.turnos&&it.turnos[turno]);
+  let items=rondaItems(p,turno);
   const total=items.length;
   if(zf)items=items.filter(it=>zoneOf(it.bloco)===zf);
   const stat=it=>{const r=S.ronda[rondaId(date,turno,it.k)];if(!r)return"pend";return(r.treinado&&r.itOk)?"ok":"nc"};
-  const all=p.items.filter(it=>it.turnos&&it.turnos[turno]&&(!zf||zoneOf(it.bloco)===zf));
+  const all=rondaItems(p,turno).filter(it=>!zf||zoneOf(it.bloco)===zf);
   const c={ok:0,nc:0,pend:0};all.forEach(it=>c[stat(it)]++);
   const n=all.length||1;
-  $("#rSummary").innerHTML=`<div class="stack" style="gap:6px"><div class="row" style="justify-content:space-between"><span><b>${c.ok+c.nc}</b> de <b>${all.length}</b> PNs verificados no ${turno}${zf?" · "+esc(zoneLabel(zf)):""}</span><span class="row"><span class="pill ok">${c.ok} conforme</span><span class="pill nc">${c.nc} não conforme</span><span class="pill">${c.pend} pendente</span></span></div><div class="progress" aria-hidden="true"><i style="width:${c.ok*100/n}%;background:var(--ok)"></i><i style="width:${c.nc*100/n}%;background:var(--nc)"></i></div>${p.items.length-total?`<span class="statusline">${p.items.length-total} PNs da programação estão parados neste turno (X ou vazio) e ficaram fora da lista.</span>`:""}</div>`;
+  $("#rSummary").innerHTML=`<div class="stack" style="gap:6px"><div class="row" style="justify-content:space-between"><span><b>${c.ok+c.nc}</b> de <b>${all.length}</b> linhas verificadas no ${turno}${zf?" · "+esc(zoneLabel(zf)):""}</span><span class="row"><span class="pill ok">${c.ok} conforme</span><span class="pill nc">${c.nc} não conforme</span><span class="pill">${c.pend} pendente</span></span></div><div class="progress" aria-hidden="true"><i style="width:${c.ok*100/n}%;background:var(--ok)"></i><i style="width:${c.nc*100/n}%;background:var(--nc)"></i></div>${p.items.length-total?`<span class="statusline">${p.items.length-total} PNs da programação estão parados neste turno (X ou vazio) e ficaram fora da lista.</span>`:""}</div>`;
   if(show==="nc")items=items.filter(it=>stat(it)==="nc");
   if(!items.length){L.innerHTML=`<div class="empty">${show==="nc"?"Nenhuma não conformidade registrada neste filtro.":"Nenhum PN rodando neste turno para este filtro."}</div>`;return}
   // agrupar zona -> máquina, mantendo ordem da programação
@@ -565,7 +576,7 @@ $("#rList").addEventListener("click",async e=>{
   if(m){keepText();const i=draft.motivos.indexOf(m.dataset.m);i>=0?draft.motivos.splice(i,1):draft.motivos.push(m.dataset.m);renderRonda();return}
   const act=e.target.closest("[data-act]");if(!act)return;
   if(act.dataset.act==="addop"){keepText();draft.ops.push({nome:"",treinado:null,sig:null,sid:null});renderRonda();return}
-  const date=$("#rDate").value,turno=$("#rTurno").value;const p=S.prog[date];const it=p.items.find(x=>x.k===form.dataset.form);
+  const date=$("#rDate").value,turno=$("#rTurno").value;const p=S.prog[date];const it=rondaItems(p,turno).find(x=>x.k===form.dataset.form);
   const id=rondaId(date,turno,it.k);
   if(act.dataset.act==="cancel"){openKey=null;draft=null;renderRonda();return}
   if(act.dataset.act==="del"){try{await del("ronda",id);toast("Registro apagado")}catch(err){toast("Não foi possível apagar ("+err.code+")")}openKey=null;draft=null;renderRonda();return}
@@ -577,7 +588,7 @@ $("#rList").addEventListener("click",async e=>{
   if(draft.itOk===false&&!draft.motivos.length&&!draft.obs.trim()){toast("Informe o motivo da IT incorreta");return}
   const stamp=Date.now().toString(36);draft.ops.forEach((o,i)=>{if(o.sig&&o.sig!=="saved")o.sid=id+"_"+stamp+i});
   const ops=draft.ops.map(o=>({nome:o.nome.trim(),treinado:o.treinado,assinado:!!o.sig,sid:o.sig?o.sid:null}));
-  const rec={date,turno,k:it.k,maq:it.maq,pn:it.pn,bloco:it.bloco,ops,treinado:ops.every(o=>o.treinado),itOk:draft.itOk,motivos:draft.itOk?[]:draft.motivos,obs:draft.obs.trim(),tl:leaderOf(zoneOf(it.bloco),turno),ts:Date.now()};
+  const rec={date,turno,k:it.k,maq:it.maq,pn:it.pn,pns:it.pns||[it.pn],bloco:it.bloco,ops,treinado:ops.every(o=>o.treinado),itOk:draft.itOk,motivos:draft.itOk?[]:draft.motivos,obs:draft.obs.trim(),tl:leaderOf(zoneOf(it.bloco),turno),ts:Date.now()};
   act.disabled=true;
   try{
     for(const o of draft.ops){if(o.sig&&o.sig!=="saved"){const sid=o.sid;await put("assinatura",sid,{img:o.sig,nome:o.nome.trim(),date,turno,pn:it.pn,maq:it.maq,ts:Date.now()});S.sigCache[sid]=o.sig}}
@@ -612,7 +623,7 @@ function filteredRonda(){
 }
 function plannedCount(zoneId){
   const f=$("#dFrom").value,t=$("#dTo").value,tu=$("#dTurno").value;let n=0;
-  Object.values(S.prog).forEach(p=>{if((f&&p.date<f)||(t&&p.date>t))return;p.items.forEach(it=>{if(zoneId!==undefined&&zoneOf(it.bloco)!==zoneId)return;["T1","T2","T3"].forEach(T=>{if((!tu||tu===T)&&it.turnos[T])n++})})});
+  Object.values(S.prog).forEach(p=>{if((f&&p.date<f)||(t&&p.date>t))return;["T1","T2","T3"].forEach(T=>{if(tu&&tu!==T)return;rondaItems(p,T).forEach(it=>{if(zoneId===undefined||zoneOf(it.bloco)===zoneId)n++})})});
   return n;
 }
 function inPeriod(d){const f=$("#dFrom").value,t=$("#dTo").value;return(!f||d>=f)&&(!t||d<=t)}
@@ -746,7 +757,7 @@ function renderCons(){
   const pn=$("#cPn").value.trim(),f=$("#cFrom").value,t=$("#cTo").value,tu=$("#cTurno").value;const B=$("#cBody");
   if(!pn){B.innerHTML=`<div class="empty"><h3>Pesquise um PN</h3><p>Mostra em quais máquinas a peça rodou, os operadores treinados de cada turno com assinatura e o histórico das rondas. Coloque uma data para ver o relatório daquele dia.</p></div>`;return}
   const k=pnKey(pn);const inP=d=>(!f||d>=f)&&(!t||d<=t);
-  const R=Object.values(S.ronda).filter(r=>pnKey(r.pn)===k&&inP(r.date)&&(!tu||r.turno===tu)).sort((a,b)=>b.date.localeCompare(a.date)||a.turno.localeCompare(b.turno));
+  const R=Object.values(S.ronda).filter(r=>(r.pns||[r.pn]).some(x=>pnKey(x)===k)&&inP(r.date)&&(!tu||r.turno===tu)).sort((a,b)=>b.date.localeCompare(a.date)||a.turno.localeCompare(b.turno));
   const runs={};Object.values(S.prog).forEach(p=>{if(!inP(p.date))return;p.items.forEach(it=>{if(pnKey(it.pn)!==k)return;["T1","T2","T3"].forEach(T=>{if(!it.turnos[T]||(tu&&tu!==T))return;runs[it.maq]=runs[it.maq]||{dias:new Set(),turnos:new Set(),last:""};const o=runs[it.maq];o.dias.add(p.date);o.turnos.add(T);if(p.date>o.last)o.last=p.date})})});
   R.forEach(r=>{runs[r.maq]=runs[r.maq]||{dias:new Set(),turnos:new Set(),last:""};const o=runs[r.maq];o.dias.add(r.date);o.turnos.add(r.turno);if(r.date>o.last)o.last=r.date});
   const per=f||t?(f===t?fmtD(f):`${f?fmtD(f):"início"} a ${t?fmtD(t):"hoje"}`):"todo o histórico";
