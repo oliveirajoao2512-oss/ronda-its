@@ -110,6 +110,26 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .chips button.on{background:var(--nc-soft);border-color:var(--nc);color:var(--nc);font-weight:600}
 
 /* dashboard */
+.subnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
+.subnav button{font:inherit;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.subnav button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.hcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.hcard .hl{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+.hcard .hv{font-family:var(--f-display);font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.hcard .hs{font-size:12.5px;color:var(--muted)}
+.t-ok{color:var(--ok)}.t-warn{color:var(--warn)}.t-nc{color:var(--nc)}
+.meter{display:block;flex:1;min-width:60px;height:8px;background:var(--chip);border-radius:999px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--muted)}.meter i.ok{background:var(--ok)}.meter i.warn{background:var(--warn)}.meter i.nc{background:var(--nc)}
+.acts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.acts li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 10px;border-radius:6px;border-left:4px solid var(--line);background:var(--chip);font-size:13.5px}
+.acts li.nc{border-left-color:var(--nc);background:var(--nc-soft)}.acts li.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.rotgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.rot{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.rot.ok{border-left-color:var(--ok)}.rot.warn{border-left-color:var(--warn)}.rot.nc{border-left-color:var(--nc)}
+.chips-ro{display:flex;flex-wrap:wrap;gap:4px}
+.chips-ro .chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--chip);white-space:nowrap}
+.chips-ro .chip.good{background:var(--ok-soft);color:var(--ok);font-weight:600}.chips-ro .chip.bad{background:var(--nc-soft);color:var(--nc);font-weight:600}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}
 .kpi .v{font-family:var(--f-display);font-size:34px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
@@ -217,6 +237,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
       <div class="row" style="justify-content:space-between"><div><h3 id="dPerLabel">Relatório</h3><div class="small muted" id="dMails"></div></div></div>
       <div class="row"><button class="btn primary" id="dCopy" type="button">Copiar relatório para email</button><button class="btn" id="dMail" type="button">Abrir email</button><button class="btn ghost" id="dPrint" type="button">Imprimir / PDF</button><button class="btn ghost" id="dExport" type="button">Exportar CSV</button></div>
     </div>
+    <nav class="subnav" id="dTabs" aria-label="Visões do dashboard"><button data-dv="geral">Visão geral</button><button data-dv="ops">Operadores</button><button data-dv="docs">Documentos</button><button data-dv="zonas">Zonas e TLs</button><button data-dv="paradas">Paradas</button></nav>
     <div id="dBody" class="stack"></div>
   </section>
 
@@ -679,48 +700,111 @@ function computeStats(){
   return{R,ops,nt,itBad,nc,semAss,planned,zs,zr,tlE,motE,machE,reimp,paradas};
 }
 const ntSort=(a,b)=>a.r.date.localeCompare(b.r.date)||a.r.turno.localeCompare(b.r.turno)||String(zoneOf(a.r.bloco)).localeCompare(String(zoneOf(b.r.bloco)));
+/* análises extras: rotatividade, operador x PN, documentos fora */
+function rotation(R){
+  const g={};
+  R.forEach(r=>{const k=r.maq+"|"+r.turno;g[k]=g[k]||{maq:r.maq,turno:r.turno,bloco:r.bloco,rondas:0,max:0,ops:{},dias:new Set()};const o=g[k];o.rondas++;o.dias.add(r.date);
+    const L=opsOf(r).filter(x=>x.nome);o.max=Math.max(o.max,L.length);L.forEach(x=>{const n=norm(x.nome);o.ops[n]=o.ops[n]||{nome:x.nome,vezes:0,nt:0};o.ops[n].vezes++;if(!x.treinado)o.ops[n].nt++})});
+  return Object.values(g).map(o=>{const d=Object.keys(o.ops).length;const ratio=o.max?d/o.max:0;
+    const nivel=o.dias.size<2?"pouco":ratio<=1?"estavel":ratio<=2?"media":"alta";
+    return{...o,distintos:d,ratio,nivel,nt:Object.values(o.ops).filter(x=>x.nt).length}}).sort((a,b)=>b.ratio-a.ratio||b.distintos-a.distintos);
+}
+function opMatrix(R){
+  const m={};
+  R.forEach(r=>opsOf(r).forEach(x=>{if(!x.nome)return;const n=norm(x.nome);m[n]=m[n]||{nome:x.nome,maqs:new Set(),pns:{},last:""};const o=m[n];o.maqs.add(r.maq);if(r.date>o.last)o.last=r.date;
+    (r.pns||[r.pn]).forEach(pn=>{const p=o.pns[pn]||(o.pns[pn]={pn,t:false,nt:false,last:""});if(r.date>=p.last){p.last=r.date;p.atual=!!x.treinado}if(x.treinado)p.t=true;else p.nt=true})}));
+  return Object.values(m).map(o=>{const ps=Object.values(o.pns);return{...o,trein:ps.filter(p=>p.atual),naoTrein:ps.filter(p=>!p.atual)}}).sort((a,b)=>b.naoTrein.length-a.naoTrein.length||a.nome.localeCompare(b.nome));
+}
+function docsOut(R){
+  const bad=R.filter(r=>!r.itOk);const by={};
+  bad.forEach(r=>{const k=r.pn+"|"+r.maq;by[k]=by[k]||{pn:r.pn,maq:r.maq,bloco:r.bloco,n:0,mot:{},last:""};const o=by[k];o.n++;if(r.date>o.last)o.last=r.date;(r.motivos&&r.motivos.length?r.motivos:["Outro"]).forEach(m=>o.mot[m]=(o.mot[m]||0)+1)});
+  const ausente=bad.filter(r=>(r.motivos||[]).some(m=>/AUSENTE/.test(norm(m)))).length;
+  return{bad,ausente,list:Object.values(by).sort((a,b)=>b.n-a.n)};
+}
+const NIVEL={estavel:["ok","Estável"],media:["warn","Média"],alta:["nc","Alta"],pouco:["","Poucas rondas"]};
+let dView=store("ronda:dview")||"geral";
+$("#dTabs").addEventListener("click",e=>{const b=e.target.closest("[data-dv]");if(!b)return;dView=b.dataset.dv;store("ronda:dview",dView);renderDash()});
+$("#dBody").addEventListener("input",e=>{if(e.target.id==="opFilter"){const q=norm(e.target.value);document.querySelectorAll("#opTable tbody tr").forEach(tr=>tr.hidden=q&&!norm(tr.dataset.nome).includes(q))}});
+function meter(v,cls){return`<span class="meter"><i class="${cls||""}" style="width:${Math.max(0,Math.min(100,v||0))}%"></i></span>`}
 function renderDash(){
   const st=computeStats();const {R}=st;const B=$("#dBody");
+  document.querySelectorAll("#dTabs [data-dv]").forEach(b=>b.setAttribute("aria-selected",b.dataset.dv===dView));
   $("#dPerLabel").textContent=`Relatório ${reportKind()} · ${periodLabel()}${$("#dTurno").value?" · "+$("#dTurno").value:""}`;
   $("#dMails").textContent=(S.cfg.emails||[]).length?"Para: "+S.cfg.emails.join(", "):"Cadastre os emails do gerente e do líder de produção em Zonas e TLs.";
   if(!R.length&&!st.paradas.length){B.innerHTML=`<div class="empty"><h3>Sem rondas no período</h3><p>Os indicadores aparecem assim que você registrar a primeira máquina na aba <b>Ronda</b>, ou escolha outro período acima.</p></div>`+reimpDash(st);return}
-  let h=`<div class="kpis">
-    <div class="kpi"><div class="v">${R.length}</div><div class="l">PNs verificados</div></div>
-    <div class="kpi"><div class="v" style="color:var(--ok)">${R.length?pct(R.length-st.nc.length,R.length)+"%":"–"}</div><div class="l">PNs conformes</div></div>
-    <div class="kpi"><div class="v">${st.ops.length}</div><div class="l">Operadores verificados</div></div>
-    <div class="kpi"><div class="v" style="color:var(--nc)">${st.nt.length}</div><div class="l">Operadores não treinados</div></div>
-    <div class="kpi"><div class="v" style="color:var(--nc)">${st.itBad.length}</div><div class="l">ITs incorretas</div></div>
-    <div class="kpi"><div class="v" style="color:var(--warn)">${st.semAss.length}</div><div class="l">Sem assinatura</div></div>
-    <div class="kpi"><div class="v" style="color:var(--muted)">${st.paradas.length}</div><div class="l">Linhas paradas</div></div>
-    <div class="kpi"><div class="v">${st.planned?pct(R.length,st.planned)+"%":"–"}</div><div class="l">Cobertura da programação</div></div>
-  </div>`;
-  h+=`<div class="stack" style="gap:8px"><div class="row" style="justify-content:space-between"><h2>Zonas mais defasadas</h2><span class="small muted">Ordenado pela taxa de não conformidade</span></div><div class="zcards">`+
-    st.zr.map((s,i)=>{const cls=s.rate===null?"":s.rate>=.3?"bad":s.rate>=.1?"mid":"good";
-      return`<div class="zc ${cls}"><div class="row" style="justify-content:space-between"><span class="rank">${s.rate===null?"SEM RONDA":"#"+(i+1)}</span>${s.rate!==null?`<span class="pill ${cls==="bad"?"nc":cls==="mid"?"warn":"ok"}">${Math.round(s.rate*100)}% NC</span>`:""}</div>
+  const rot=rotation(R),mat=opMatrix(R),docs=docsOut(R);
+  const conf=R.length?pct(R.length-st.nc.length,R.length):null;
+  const ntPct=st.ops.length?pct(st.nt.length,st.ops.length):0;
+  const rotAlta=rot.filter(o=>o.nivel==="alta"||o.nivel==="media");
+  const reimpN=st.reimp.length;
+  let h="";
+  if(dView==="geral"){
+    h+=`<div class="hero">
+      <div class="hcard"><div class="hl">Conformidade das linhas</div><div class="hv ${conf===null?"":conf>=90?"t-ok":conf>=70?"t-warn":"t-nc"}">${conf===null?"–":conf+"%"}</div>${meter(conf,conf>=90?"ok":conf>=70?"warn":"nc")}<div class="hs">${R.length-st.nc.length} de ${R.length} linhas sem desvio · cobertura ${st.planned?pct(R.length,st.planned)+"%":"–"}</div></div>
+      <div class="hcard"><div class="hl">Operadores não treinados</div><div class="hv ${st.nt.length?"t-nc":"t-ok"}">${st.nt.length}</div>${meter(100-ntPct,st.nt.length?"nc":"ok")}<div class="hs">${ntPct}% dos ${st.ops.length} operadores verificados · ${mat.filter(o=>o.naoTrein.length).length} pessoas</div></div>
+      <div class="hcard"><div class="hl">Documentos fora / incorretos</div><div class="hv ${docs.bad.length?"t-nc":"t-ok"}">${docs.bad.length}</div><div class="hs">${docs.ausente} IT ausente no posto · ${reimpN} reimpressões (${st.reimp.filter(x=>x.reincidencia).length} reincidências)</div></div>
+      <div class="hcard"><div class="hl">Rotatividade de operadores</div><div class="hv ${rotAlta.length?"t-warn":"t-ok"}">${rotAlta.length}</div><div class="hs">máquinas/turnos com troca de operador · ${rot.filter(o=>o.nivel==="alta").length} com rotatividade alta</div></div>
+    </div>`;
+    // onde agir
+    const acts=[];
+    const zw=st.zr.find(s=>s.tot&&s.rate>0);if(zw)acts.push(["nc",`${esc(zw.z.name)} é a zona mais defasada: ${Math.round(zw.rate*100)}% das linhas com desvio`,esc(leadersLine(zw.z))]);
+    mat.filter(o=>o.naoTrein.length).slice(0,4).forEach(o=>acts.push(["nc",`<b>${esc(o.nome)}</b> operando sem treinamento em ${o.naoTrein.map(p=>`<span class="mono">${esc(p.pn)}</span>`).join(", ")}`,`${[...o.maqs].map(esc).join(", ")}`]));
+    docs.list.slice(0,3).forEach(d=>acts.push(["warn",`IT incorreta em <b>${esc(d.maq)}</b> · <span class="mono">${esc(d.pn)}</span> (${d.n}×): ${esc(Object.keys(d.mot).join(", "))}`,esc(zoneById(zoneOf(d.bloco))?.name||"")]));
+    rot.filter(o=>o.nivel==="alta").slice(0,3).forEach(o=>acts.push(["warn",`Rotatividade alta na <b>${esc(o.maq)}</b> ${o.turno}: ${o.distintos} operadores diferentes em ${o.dias.size} dias`,esc(zoneById(zoneOf(o.bloco))?.name||"")]));
+    h+=`<div class="panel stack"><h3>Onde agir</h3>${acts.length?`<ul class="acts">${acts.map(([c,t,s])=>`<li class="${c}"><span>${t}</span><span class="small muted">${s}</span></li>`).join("")}</ul>`:`<p class="muted small" style="margin:0">Nenhum desvio no período.</p>`}</div>`;
+    // zonas compacto
+    h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Zonas</h3><span class="small muted">Da mais defasada para a menos</span></div><div class="tbl-wrap"><table class="ztbl"><thead><tr><th>Zona</th><th>Conformidade</th><th class="num">Linhas</th><th class="num">Não treinados</th><th class="num">IT incorreta</th><th class="num">Paradas</th></tr></thead><tbody>${st.zr.map(s=>{const c=s.tot?pct(s.tot-s.nc,s.tot):null;const par=st.paradas.filter(r=>zoneOf(r.bloco)===s.z.id).length;return`<tr><td><b>${esc(s.z.name)}</b><br><span class="small muted">${esc(leadersLine(s.z))}</span></td><td style="min-width:140px">${c===null?`<span class="muted small">sem ronda</span>`:`<div class="row" style="flex-wrap:nowrap;gap:8px">${meter(c,c>=90?"ok":c>=70?"warn":"nc")}<b>${c}%</b></div>`}</td><td class="num">${s.tot}</td><td class="num">${s.nt?`<b class="t-nc">${s.nt}</b>`:0}</td><td class="num">${s.it?`<b class="t-nc">${s.it}</b>`:0}</td><td class="num">${par}</td></tr>`}).join("")}</tbody></table></div></div>`;
+    const days={};R.forEach(r=>{days[r.date]=days[r.date]||{ok:0,nc:0};days[r.date][isOk(r)?"ok":"nc"]++});
+    const dk=Object.keys(days).sort().slice(-31);
+    if(dk.length>1){const dmax=Math.max(...dk.map(d=>days[d].ok+days[d].nc),1);
+      h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Linhas verificadas por dia</h3><div class="legend"><span style="--c:var(--ok)">Conforme</span><span style="--c:var(--nc)">Com desvio</span></div></div>
+      <div class="trend">${dk.map(d=>{const o=days[d];return`<div class="d" title="${fmtD(d)}: ${o.ok} conforme, ${o.nc} com desvio"><span class="lb">${o.ok+o.nc}</span><div class="col" style="height:${(o.ok+o.nc)*90/dmax}%"><i style="height:${o.ok*100/(o.ok+o.nc)}%;background:var(--ok)"></i><i style="height:${o.nc*100/(o.ok+o.nc)}%;background:var(--nc)"></i></div><span class="lb">${d.slice(8)}/${d.slice(5,7)}</span></div>`}).join("")}</div></div>`}
+  }
+  if(dView==="ops"){
+    h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Rotatividade de operadores por máquina</h3><span class="small muted">Operadores diferentes ÷ operadores por ronda</span></div>
+      <div class="legend"><span style="--c:var(--ok)">Estável: sempre as mesmas pessoas</span><span style="--c:var(--warn)">Média: até 2× o quadro</span><span style="--c:var(--nc)">Alta: mais de 2× o quadro</span></div>
+      ${rot.length?`<div class="rotgrid">${rot.map(o=>{const [c,l]=NIVEL[o.nivel];return`<div class="rot ${c}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div><b>${esc(o.maq)}</b> <span class="muted">· ${o.turno} · ${esc(zoneById(zoneOf(o.bloco))?.name||"")}</span></div><span class="pill ${c}">${l}</span></div><div class="small muted">${o.distintos} operadores diferentes em ${o.dias.size} dias${o.max?` · quadro de ${o.max} por ronda`:""}</div><div class="chips-ro">${Object.values(o.ops).sort((a,b)=>b.vezes-a.vezes).map(x=>`<span class="chip ${x.nt?"bad":""}" title="${x.vezes} rondas${x.nt?", não treinado":""}">${esc(x.nome)}${x.vezes>1?` ×${x.vezes}`:""}</span>`).join("")}</div></div>`}).join("")}</div>`:`<p class="muted small" style="margin:0">Sem operadores registrados no período.</p>`}</div>`;
+    h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Operador × PN: treinado em quê</h3><input id="opFilter" placeholder="Filtrar operador" style="max-width:220px"></div>
+      <div class="legend"><span style="--c:var(--ok)">Treinado no PN</span><span style="--c:var(--nc)">Não treinado no PN (última ronda)</span></div>
+      ${mat.length?`<div class="tbl-wrap"><table id="opTable"><thead><tr><th>Operador</th><th>PNs (verde treinado, vermelho não)</th><th>Última</th></tr></thead><tbody>${mat.map(o=>`<tr data-nome="${esc(o.nome)}"><td><b>${esc(o.nome)}</b><br><span class="small muted">${[...o.maqs].map(esc).join(", ")}</span></td><td><div class="chips-ro">${o.naoTrein.map(p=>`<span class="chip bad mono" title="Não treinado">✕ ${esc(p.pn)}</span>`).join("")}${o.trein.map(p=>`<span class="chip good mono" title="Treinado">✓ ${esc(p.pn)}</span>`).join("")}</div></td><td class="small">${fmtD(o.last).slice(0,5)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted small" style="margin:0">Sem operadores registrados no período.</p>`}</div>`;
+    const nt=[...st.nt].sort(ntSort);
+    h+=`<div class="panel stack"><h3>Ocorrências de operador não treinado (${nt.length})</h3>${nt.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Operador</th><th>Assinatura</th></tr></thead><tbody>`+
+      nt.map(({o,r})=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td><b>${esc(o.nome||"Não informado")}</b></td><td>${o.assinado?`<span class="pill ok">Sim</span>`:`<span class="pill warn">Não</span>`}</td></tr>`).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Todos os operadores verificados no período estavam treinados.</p>`}</div>`;
+  }
+  if(dView==="docs"){
+    const tipos=["FT","IT","LO"].map(t=>[t,st.reimp.filter(x=>tipoOf(x)===t).length]);
+    h+=`<div class="hero">
+      <div class="hcard"><div class="hl">ITs incorretas na ronda</div><div class="hv ${docs.bad.length?"t-nc":"t-ok"}">${docs.bad.length}</div><div class="hs">em ${docs.list.length} PN/máquina</div></div>
+      <div class="hcard"><div class="hl">IT ausente no posto</div><div class="hv ${docs.ausente?"t-nc":"t-ok"}">${docs.ausente}</div><div class="hs">documento fora do posto na hora da ronda</div></div>
+      <div class="hcard"><div class="hl">Reimpressões</div><div class="hv">${reimpN}</div><div class="hs">${tipos.map(([t,n])=>`${t} ${n}`).join(" · ")}</div></div>
+      <div class="hcard"><div class="hl">Reincidência de perda</div><div class="hv ${st.reimp.some(x=>x.reincidencia)?"t-nc":"t-ok"}">${st.reimp.filter(x=>x.reincidencia).length}</div><div class="hs">documentos reimpressos mais de uma vez</div></div>
+    </div>`;
+    const mmax=st.motE[0]?.[1]||1;
+    h+=`<div class="split"><div class="panel stack"><h3>Motivos de IT incorreta</h3>${st.motE.length?`<div class="hbars">`+st.motE.map(([m,n])=>`<div class="hb"><span>${esc(m)}</span><span class="t"><i style="width:${n*100/mmax}%"></i></span><span class="n">${n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhuma IT incorreta no período.</p>`}</div>`+
+      `<div class="panel stack"><h3>Reimpressões por zona</h3>${reimpN?`<div class="hbars">${(()=>{const z={};st.reimp.forEach(x=>{const k=zoneById(x.zona)?.name||"Sem zona";z[k]=(z[k]||0)+1});const e=Object.entries(z).sort((a,b)=>b[1]-a[1]);const mx=e[0][1];return e.map(([k,n])=>`<div class="hb"><span>${esc(k)}</span><span class="t"><i style="width:${n*100/mx}%;background:var(--warn)"></i></span><span class="n">${n}</span></div>`).join("")})()}</div>`:`<p class="muted small">Nenhuma reimpressão no período.</p>`}</div></div>`;
+    h+=`<div class="panel stack"><h3>Documentos fora ou incorretos por PN</h3>${docs.list.length?`<div class="tbl-wrap"><table><thead><tr><th>PN</th><th>Máquina</th><th>Zona</th><th class="num">Vezes</th><th>Motivos</th><th>Última</th></tr></thead><tbody>${docs.list.map(d=>`<tr><td class="mono">${esc(d.pn)}</td><td>${esc(d.maq)}</td><td>${esc(zoneById(zoneOf(d.bloco))?.name||"")}</td><td class="num"><b class="t-nc">${d.n}</b></td><td class="small">${Object.entries(d.mot).map(([m,n])=>esc(m)+(n>1?` (${n})`:"")).join(", ")}</td><td>${fmtD(d.last)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted small" style="margin:0">Nenhuma IT incorreta no período.</p>`}</div>`;
+    h+=reimpDash(st);
+  }
+  if(dView==="zonas"){
+    h+=`<div class="zcards">`+st.zr.map((s,i)=>{const cls=s.rate===null?"":s.rate>=.3?"bad":s.rate>=.1?"mid":"good";
+      return`<div class="zc ${cls}"><div class="row" style="justify-content:space-between"><span class="rank">${s.rate===null?"SEM RONDA":"#"+(i+1)}</span>${s.rate!==null?`<span class="pill ${cls==="bad"?"nc":cls==="mid"?"warn":"ok"}">${Math.round(s.rate*100)}% com desvio</span>`:""}</div>
       <div><h3>${esc(s.z.name)}</h3><div class="small muted">${esc(leadersLine(s.z))}</div></div>
       <div class="big">${s.tot?pct(s.tot-s.nc,s.tot)+"%":"–"}<span class="small muted" style="font-family:var(--f-body);font-weight:500"> conforme</span></div>
-      <dl><dt>PNs verificados</dt><dd>${s.tot}</dd><dt>IT incorreta</dt><dd>${s.it}</dd><dt>Operadores não treinados</dt><dd>${s.nt} de ${s.ops}</dd><dt>Cobertura</dt><dd>${s.cov===null?"–":s.cov+"%"}</dd><dt>Reimpressões</dt><dd>${s.reimp}</dd></dl>
-      ${s.top?`<div class="small"><span class="muted">Motivo mais comum:</span> ${esc(s.top[0])}</div>`:""}</div>`}).join("")+`</div></div>`;
-  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Team leaders</h3><span class="small muted">Ordenado pela taxa de não conformidade</span></div><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Team leader</th><th>Zona e turno</th><th class="num">PNs</th><th class="num">IT incorreta</th><th class="num">Op. não treinados</th><th class="num">Conformidade</th></tr></thead><tbody>`+
-    st.tlE.map((o,i)=>{const c=pct(o.tot-o.nc,o.tot);const cls=c<70?"nc":c<90?"warn":"ok";return`<tr><td>${i+1}</td><td><b>${esc(o.n)}</b></td><td class="small">${esc([...o.zt].join(", "))}</td><td class="num">${o.tot}</td><td class="num">${o.it}</td><td class="num">${o.nt}</td><td class="num"><span class="pill ${cls}">${c}%</span></td></tr>`}).join("")+`</tbody></table></div></div>`;
-  const nt=[...st.nt].sort(ntSort);
-  h+=`<div class="panel stack"><h3>Operadores não treinados (${nt.length})</h3>${nt.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Operador</th><th>Assinatura</th></tr></thead><tbody>`+
-    nt.map(({o,r})=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td><b>${esc(o.nome||"Não informado")}</b></td><td>${o.assinado?`<span class="pill ok">Sim</span>`:`<span class="pill warn">Não</span>`}</td></tr>`).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Todos os operadores verificados no período estavam treinados.</p>`}</div>`;
-  const mmax=st.motE[0]?.[1]||1,xmax=st.machE[0]?.[1].n||1;
-  h+=`<div class="split"><div class="panel stack"><h3>Motivos de IT incorreta</h3>${st.motE.length?`<div class="hbars">`+st.motE.map(([m,n])=>`<div class="hb"><span>${esc(m)}</span><span class="t"><i style="width:${n*100/mmax}%"></i></span><span class="n">${n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhuma IT incorreta no período.</p>`}</div>
-  <div class="panel stack"><h3>Máquinas com mais não conformidades</h3>${st.machE.length?`<div class="hbars">`+st.machE.map(([m,o])=>`<div class="hb"><span>${esc(m)} <span class="muted">· ${esc(zoneById(o.z)?.name||"")}</span></span><span class="t"><i style="width:${o.n*100/xmax}%"></i></span><span class="n">${o.n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhuma não conformidade no período.</p>`}</div></div>`;
-  const days={};R.forEach(r=>{days[r.date]=days[r.date]||{ok:0,nc:0};days[r.date][isOk(r)?"ok":"nc"]++});
-  const dk=Object.keys(days).sort().slice(-31);
-  if(dk.length>1){const dmax=Math.max(...dk.map(d=>days[d].ok+days[d].nc),1);
-  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>PNs verificados por dia</h3><div class="legend"><span style="--c:var(--ok)">Conforme</span><span style="--c:var(--nc)">Não conforme</span></div></div>
-  <div class="trend">${dk.map(d=>{const o=days[d];return`<div class="d" title="${fmtD(d)}: ${o.ok} conforme, ${o.nc} não conforme"><span class="lb">${o.ok+o.nc}</span><div class="col" style="height:${(o.ok+o.nc)*90/dmax}%"><i style="height:${o.ok*100/(o.ok+o.nc)}%;background:var(--ok)"></i><i style="height:${o.nc*100/(o.ok+o.nc)}%;background:var(--nc)"></i></div><span class="lb">${d.slice(8)}/${d.slice(5,7)}</span></div>`}).join("")}</div></div>`}
-  if(st.paradas.length){const pm={};st.paradas.forEach(r=>pm[r.motivoParada]=(pm[r.motivoParada]||0)+1);
-  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Linhas paradas na ronda (${st.paradas.length})</h3><span class="small muted">Fora da conta de conformidade e de cobertura</span></div><div class="row">${Object.entries(pm).sort((a,b)=>b[1]-a[1]).map(([m,n])=>`<span class="pill">${esc(m)}: ${n}</span>`).join("")}</div><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Motivo</th></tr></thead><tbody>`+
-    st.paradas.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td>${esc(r.motivoParada||"")}${r.obs?`<br><span class="small muted">${esc(r.obs)}</span>`:""}</td></tr>`).join("")+`</tbody></table></div></div>`}
-  const its=[...st.itBad].sort((a,b)=>b.ts-a.ts);
-  h+=`<div class="panel stack"><h3>ITs incorretas (${its.length})</h3>${its.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Motivo</th></tr></thead><tbody>`+
-    its.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td>${esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))}</td></tr>`).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Nenhuma IT incorreta no período.</p>`}</div>`;
-  B.innerHTML=h+reimpDash(st);
+      <dl><dt>Linhas verificadas</dt><dd>${s.tot}</dd><dt>IT incorreta</dt><dd>${s.it}</dd><dt>Operadores não treinados</dt><dd>${s.nt} de ${s.ops}</dd><dt>Cobertura</dt><dd>${s.cov===null?"–":s.cov+"%"}</dd><dt>Reimpressões</dt><dd>${s.reimp}</dd></dl>
+      ${s.top?`<div class="small"><span class="muted">Motivo mais comum:</span> ${esc(s.top[0])}</div>`:""}</div>`}).join("")+`</div>`;
+    h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Team leaders</h3><span class="small muted">Ordenado pela taxa de desvio</span></div><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Team leader</th><th>Zona e turno</th><th class="num">Linhas</th><th class="num">IT incorreta</th><th class="num">Op. não treinados</th><th>Conformidade</th></tr></thead><tbody>`+
+      st.tlE.map((o,i)=>{const c=pct(o.tot-o.nc,o.tot);const cls=c<70?"nc":c<90?"warn":"ok";return`<tr><td>${i+1}</td><td><b>${esc(o.n)}</b></td><td class="small">${esc([...o.zt].join(", "))}</td><td class="num">${o.tot}</td><td class="num">${o.it}</td><td class="num">${o.nt}</td><td style="min-width:130px"><div class="row" style="flex-wrap:nowrap;gap:8px">${meter(c,cls)}<b>${c}%</b></div></td></tr>`}).join("")+`</tbody></table></div></div>`;
+    const xmax=st.machE[0]?.[1].n||1;
+    h+=`<div class="panel stack"><h3>Máquinas com mais desvios</h3>${st.machE.length?`<div class="hbars">`+st.machE.map(([m,o])=>`<div class="hb"><span>${esc(m)} <span class="muted">· ${esc(zoneById(o.z)?.name||"")}</span></span><span class="t"><i style="width:${o.n*100/xmax}%"></i></span><span class="n">${o.n}</span></div>`).join("")+`</div>`:`<p class="muted small">Nenhum desvio no período.</p>`}</div>`;
+  }
+  if(dView==="paradas"){
+    if(st.paradas.length){const pm={};st.paradas.forEach(r=>pm[r.motivoParada]=(pm[r.motivoParada]||0)+1);const e=Object.entries(pm).sort((a,b)=>b[1]-a[1]);const mx=e[0][1];
+      h+=`<div class="panel stack"><h3>Motivos de parada</h3><div class="hbars">${e.map(([m,n])=>`<div class="hb"><span>${esc(m)}</span><span class="t"><i style="width:${n*100/mx}%;background:var(--muted)"></i></span><span class="n">${n}</span></div>`).join("")}</div></div>
+      <div class="panel stack"><h3>Linhas paradas na ronda (${st.paradas.length})</h3><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Motivo</th></tr></thead><tbody>`+
+      st.paradas.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td>${esc(r.motivoParada||"")}${r.obs?`<br><span class="small muted">${esc(r.obs)}</span>`:""}</td></tr>`).join("")+`</tbody></table></div></div>`}
+    else h+=`<div class="empty">Nenhuma linha parada registrada no período.</div>`;
+  }
+  B.innerHTML=h;
 }
 function reimpDash(st){
   const L=st.reimp;if(!L.length)return"";
@@ -742,6 +826,12 @@ function reportHtml(st){
   h+=h2("Zonas (da mais defasada para a menos)")+tbl(["#","Zona","Team leaders","PNs","% conforme","IT incorreta","Op. não treinados","Motivo mais comum"],st.zr.filter(s=>s.tot).map((s,i)=>[i+1,`<b>${esc(s.z.name)}</b>`,esc(leadersLine(s.z)),s.tot,pct(s.tot-s.nc,s.tot)+"%",s.it?red(s.it):0,s.nt?red(s.nt):0,esc(s.top?.[0]||"–")]));
   h+=h2("Team leaders")+tbl(["#","Team leader","Zona e turno","PNs","% conforme","IT incorreta","Op. não treinados"],st.tlE.map((o,i)=>[i+1,`<b>${esc(o.n)}</b>`,esc([...o.zt].join(", ")),o.tot,pct(o.tot-o.nc,o.tot)+"%",o.it?red(o.it):0,o.nt?red(o.nt):0]));
   h+=h2(`Operadores não treinados (${st.nt.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Operador"],[...st.nt].sort(ntSort).map(({o,r})=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),red(esc(o.nome||"Não informado"))]));
+  {const rot=rotation(R).filter(o=>o.nivel==="alta"||o.nivel==="media");
+  h+=h2(`Rotatividade de operadores (${rot.length} máquinas/turnos)`)+tbl(["Máquina","Turno","Zona","Dias","Op. diferentes","Nível","Quem operou"],rot.map(o=>[`<b>${esc(o.maq)}</b>`,o.turno,esc(zoneById(zoneOf(o.bloco))?.name||""),o.dias.size,o.distintos,o.nivel==="alta"?red("Alta"):"Média",esc(Object.values(o.ops).map(x=>x.nome).join(", "))]));
+  const mt=opMatrix(R).filter(o=>o.naoTrein.length);
+  h+=h2(`Operador × PN sem treinamento (${mt.length})`)+tbl(["Operador","Máquinas","PNs não treinado","PNs treinado"],mt.map(o=>[`<b>${esc(o.nome)}</b>`,esc([...o.maqs].join(", ")),red(esc(o.naoTrein.map(p=>p.pn).join(", "))),esc(o.trein.map(p=>p.pn).join(", ")||"–")]));
+  const dc=docsOut(R);
+  h+=h2(`Documentos fora ou incorretos (${dc.bad.length}, ${dc.ausente} IT ausente)`)+tbl(["PN","Máquina","Zona","Vezes","Motivos"],dc.list.map(d=>[esc(d.pn),esc(d.maq),esc(zoneById(zoneOf(d.bloco))?.name||""),red(d.n),esc(Object.keys(d.mot).join(", "))]));}
   if(st.paradas.length)h+=h2(`Linhas paradas na ronda (${st.paradas.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Motivo"],st.paradas.map(r=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),esc([r.motivoParada,r.obs].filter(Boolean).join(" · "))]));
   h+=h2(`ITs incorretas (${st.itBad.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Motivo"],[...st.itBad].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))]));
   if(st.reimp.length)h+=h2(`Reimpressões (${st.reimp.length})`)+tbl(["Data","Doc.","PN","Solicitante","Assinou","Zona / máquina","Ocorrência"],st.reimp.map(x=>[fmtD(x.date),tipoOf(x),esc(x.pn),esc(x.solicitante),x.sid?"Sim":"Não",esc((zoneById(x.zona)?.name||"–")+(x.maq?" · "+x.maq:"")),x.reincidencia?red("Reincidência "+x.ocorrencia+"ª"):"1ª"]));
@@ -752,6 +842,8 @@ function reportText(st){
   const {R}=st;const L=[`RONDA DE ITs - Relatório ${reportKind()} - ${periodLabel()}`,"",`PNs verificados: ${R.length} (${pct(R.length-st.nc.length,R.length)??0}% conformes)`,`Operadores verificados: ${st.ops.length} | Não treinados: ${st.nt.length}`,`ITs incorretas: ${st.itBad.length} | Sem assinatura: ${st.semAss.length}`,"","Zonas mais defasadas:"];
   st.zr.filter(s=>s.tot).forEach((s,i)=>L.push(`${i+1}. ${s.z.name}: ${pct(s.tot-s.nc,s.tot)}% conforme, ${s.nt} op. não treinados, ${s.it} ITs incorretas`));
   if(st.nt.length){L.push("","Operadores não treinados:");[...st.nt].sort(ntSort).slice(0,25).forEach(({o,r})=>L.push(`- ${fmtD(r.date)} ${r.turno} ${zoneById(zoneOf(r.bloco))?.name||""} (TL ${tlOf(r)||"-"}) ${r.maq} PN ${r.pn}: ${o.nome||"não informado"}`))}
+  {const rot=rotation(st.R).filter(o=>o.nivel==="alta");if(rot.length){L.push("","Rotatividade alta:");rot.forEach(o=>L.push(`- ${o.maq} ${o.turno}: ${o.distintos} operadores em ${o.dias.size} dias`))}
+  const dc=docsOut(st.R);if(dc.bad.length)L.push("",`Documentos fora/incorretos: ${dc.bad.length} (${dc.ausente} IT ausente no posto)`);}
   return L.join("\n");
 }
 async function copyRich(html,text){
