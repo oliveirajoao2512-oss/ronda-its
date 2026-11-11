@@ -92,7 +92,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .pn{display:grid;grid-template-columns:6px 1fr auto;gap:10px;align-items:center;padding:10px 12px 10px 0;border-top:1px solid var(--line);cursor:pointer;width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-bottom:0;font:inherit;color:inherit}
 .pn:first-of-type{border-top:0}
 .pn .bar{align-self:stretch;background:var(--line)}
-.pn.ok .bar{background:var(--ok)} .pn.nc .bar{background:var(--nc)}
+.pn.ok .bar{background:var(--ok)} .pn.nc .bar{background:var(--nc)} .pn.par .bar{background:var(--muted)} .pn.par .pnn{color:var(--muted)}
+.btn.parbtn{border-style:dashed;color:var(--muted)}
+.btn.parbtn.on{border-style:solid;border-color:var(--ink);color:var(--ink);background:var(--chip)}
+.chips.par button.on{background:var(--chip);border-color:var(--ink);color:var(--ink)}
 .pn .pnn{font-family:var(--f-mono);font-size:15px;font-weight:500;word-break:break-all}
 .pn .obs{font-size:12px;color:var(--warn);font-weight:600}
 .form{padding:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:12px;background:var(--panel)}
@@ -292,6 +295,9 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
       <h3 style="margin-top:8px">Motivos de IT incorreta</h3>
       <textarea id="motivosEdit" rows="7"></textarea>
       <p class="small muted" style="margin:0">Um motivo por linha. Aparecem como botões na ronda.</p>
+      <h3 style="margin-top:8px">Motivos de máquina parada</h3>
+      <textarea id="paradaEdit" rows="6"></textarea>
+      <p class="small muted" style="margin:0">Um motivo por linha. Aparecem como botões na ronda.</p>
       <h3 style="margin-top:8px">Destinatários do relatório</h3>
       <textarea id="mailsEdit" rows="3" placeholder="gerente.producao@empresa.com.br"></textarea>
       <p class="small muted" style="margin:0">Um email por linha (gerente de produção, líder de produção). Usados no botão Abrir email do dashboard.</p>
@@ -325,6 +331,7 @@ function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localSto
 const DEFAULT_CFG={
   zones:[{id:"z1",name:"Zona 1",leaders:{}},{id:"z2",name:"Zona 2",leaders:{}},{id:"z3",name:"Zona 3",leaders:{}},{id:"z4",name:"Zona 4",leaders:{}}],
   blockMap:{"GRUPO 1":"z1","GRUPO 2":"z2","GRUPO 3":"z3","GRUPO 4":"z4","MONTAGENS":"z4"},
+  motivosParada:["Manutenção corretiva","Manutenção preventiva","Setup / troca de molde","Falta de material","Falta de operador","Try-out","Problema de qualidade","Sem programação no momento"],
   motivos:["IT ausente no posto","Revisão desatualizada","IT não corresponde ao PN/máquina","IT danificada ou ilegível","Registro de treinamento sem assinatura","Processo diferente do descrito na IT","Foto ou desenho divergente"]
 };
 
@@ -492,34 +499,35 @@ function renderRonda(){
   let items=rondaItems(p,turno);
   const total=items.length;
   if(zf)items=items.filter(it=>zoneOf(it.bloco)===zf);
-  const stat=it=>{const r=S.ronda[rondaId(date,turno,it.k)];if(!r)return"pend";return(r.treinado&&r.itOk)?"ok":"nc"};
+  const stat=it=>{const r=S.ronda[rondaId(date,turno,it.k)];if(!r)return"pend";if(r.parada)return"par";return(r.treinado&&r.itOk)?"ok":"nc"};
   const all=rondaItems(p,turno).filter(it=>!zf||zoneOf(it.bloco)===zf);
-  const c={ok:0,nc:0,pend:0};all.forEach(it=>c[stat(it)]++);
+  const c={ok:0,nc:0,pend:0,par:0};all.forEach(it=>c[stat(it)]++);
   const n=all.length||1;
-  $("#rSummary").innerHTML=`<div class="stack" style="gap:6px"><div class="row" style="justify-content:space-between"><span><b>${c.ok+c.nc}</b> de <b>${all.length}</b> linhas verificadas no ${turno}${zf?" · "+esc(zoneLabel(zf)):""}</span><span class="row"><span class="pill ok">${c.ok} conforme</span><span class="pill nc">${c.nc} não conforme</span><span class="pill">${c.pend} pendente</span></span></div><div class="progress" aria-hidden="true"><i style="width:${c.ok*100/n}%;background:var(--ok)"></i><i style="width:${c.nc*100/n}%;background:var(--nc)"></i></div>${p.items.length-total?`<span class="statusline">${p.items.length-total} PNs da programação estão parados neste turno (X ou vazio) e ficaram fora da lista.</span>`:""}</div>`;
+  $("#rSummary").innerHTML=`<div class="stack" style="gap:6px"><div class="row" style="justify-content:space-between"><span><b>${c.ok+c.nc+c.par}</b> de <b>${all.length}</b> linhas verificadas no ${turno}${zf?" · "+esc(zoneLabel(zf)):""}</span><span class="row"><span class="pill ok">${c.ok} conforme</span><span class="pill nc">${c.nc} não conforme</span><span class="pill">${c.pend} pendente</span>${c.par?`<span class="pill">${c.par} parada</span>`:""}</span></div><div class="progress" aria-hidden="true"><i style="width:${c.ok*100/n}%;background:var(--ok)"></i><i style="width:${c.nc*100/n}%;background:var(--nc)"></i><i style="width:${c.par*100/n}%;background:var(--muted)"></i></div>${p.items.length-total?`<span class="statusline">${p.items.length-total} PNs da programação estão parados neste turno (X ou vazio) e ficaram fora da lista.</span>`:""}</div>`;
   if(show==="nc")items=items.filter(it=>stat(it)==="nc");
   if(!items.length){L.innerHTML=`<div class="empty">${show==="nc"?"Nenhuma não conformidade registrada neste filtro.":"Nenhum PN rodando neste turno para este filtro."}</div>`;return}
   // agrupar zona -> máquina, mantendo ordem da programação
   const zones=[];const zmap={};
   items.forEach(it=>{const z=zoneOf(it.bloco)||"";if(!zmap[z]){zmap[z]={id:z,mach:[],mmap:{}};zones.push(zmap[z])}const Z=zmap[z];if(!Z.mmap[it.maq]){Z.mmap[it.maq]={maq:it.maq,bloco:it.bloco,items:[]};Z.mach.push(Z.mmap[it.maq])}Z.mmap[it.maq].items.push(it)});
-  const order={pend:0,nc:1,ok:2};
+  const order={pend:0,nc:1,ok:2,par:3};
   if(show==="pend")zones.forEach(Z=>Z.mach.sort((a,b)=>Math.min(...a.items.map(i=>order[stat(i)]))-Math.min(...b.items.map(i=>order[stat(i)]))));
   L.innerHTML=zones.map(Z=>{
     const zz=all.filter(it=>(zoneOf(it.bloco)||"")===Z.id);const done=zz.filter(it=>stat(it)!=="pend").length;
     return`<div class="zone-sec"><div class="zone-head"><h2>${esc(zoneById(Z.id)?.name||"Sem zona")}</h2><span class="small muted">${leaderOf(Z.id,turno)?"TL "+esc(leaderOf(Z.id,turno))+" · ":""}${done}/${zz.length} verificados</span></div>`+
     Z.mach.map(M=>`<div class="mach"><div class="mach-h"><strong>${esc(M.maq)}</strong><span class="small muted">${M.items.length>1?M.items.length+" PNs · ":""}${esc(M.bloco)}</span></div>`+
       M.items.map(it=>{const s=stat(it);const r=S.ronda[rondaId(date,turno,it.k)];
-        let tag=s==="pend"?`<span class="pill">Verificar</span>`:s==="ok"?`<span class="pill ok">Conforme</span>`:`<span class="pill nc">${!r.treinado&&!r.itOk?"Treino + IT":!r.treinado?"Não treinado":"IT incorreta"}</span>`;
+        let tag=s==="pend"?`<span class="pill">Verificar</span>`:s==="par"?`<span class="pill">Parada</span>`:s==="ok"?`<span class="pill ok">Conforme</span>`:`<span class="pill nc">${!r.treinado&&!r.itOk?"Treino + IT":!r.treinado?"Não treinado":"IT incorreta"}</span>`;
         const isOpen=openKey===it.k;
-        return`<button type="button" class="pn ${s}" data-k="${esc(it.k)}" aria-expanded="${isOpen}"><span class="bar"></span><span style="min-width:0"><span class="pnn">${esc(it.pn)}</span>${it.obs?`<br><span class="obs">${esc(it.obs)}</span>`:""}${r&&s==="nc"&&r.motivos&&r.motivos.length?`<br><span class="small muted">${esc(r.motivos.join(" · "))}</span>`:""}</span>${tag}</button>`+(isOpen?formHtml(it,r):"");
+        return`<button type="button" class="pn ${s}" data-k="${esc(it.k)}" aria-expanded="${isOpen}"><span class="bar"></span><span style="min-width:0"><span class="pnn">${esc(it.pn)}</span>${it.obs?`<br><span class="obs">${esc(it.obs)}</span>`:""}${r&&s==="par"?`<br><span class="small muted">Parada: ${esc(r.motivoParada||"")}${r.obs?" · "+esc(r.obs):""}</span>`:""}${r&&s==="nc"&&r.motivos&&r.motivos.length?`<br><span class="small muted">${esc(r.motivos.join(" · "))}</span>`:""}</span>${tag}</button>`+(isOpen?formHtml(it,r):"");
       }).join("")+`</div>`).join("")+`</div>`;
   }).join("");
 }
-function opsOf(r){if(r.ops&&r.ops.length)return r.ops;return[{nome:r.operador||"",treinado:!!r.treinado,assinado:false}]}
+function opsOf(r){if(r.parada)return[];if(r.ops&&r.ops.length)return r.ops;return[{nome:r.operador||"",treinado:!!r.treinado,assinado:false}]}
 function formHtml(it,r){
   const turno=$("#rTurno").value;
   if(!draft){
-    if(r)draft={itOk:r.itOk,motivos:[...(r.motivos||[])],obs:r.obs||"",ops:opsOf(r).map(o=>({nome:o.nome||"",treinado:o.treinado,sig:o.assinado?"saved":null,sid:o.sid||null}))};
+    if(r&&r.parada)draft={parada:true,motivoParada:r.motivoParada||"",obs:r.obs||"",itOk:null,motivos:[],ops:Array.from({length:Math.max(1,Math.min(12,Math.round(+(it.mod&&it.mod[turno])||1)))},()=>({nome:"",treinado:null,sig:null,sid:null}))};
+    else if(r)draft={itOk:r.itOk,motivos:[...(r.motivos||[])],obs:r.obs||"",ops:opsOf(r).map(o=>({nome:o.nome||"",treinado:o.treinado,sig:o.assinado?"saved":null,sid:o.sid||null}))};
     else{const n=Math.max(1,Math.min(12,Math.round(+(it.mod&&it.mod[turno])||1)));draft={itOk:null,motivos:[],obs:"",ops:Array.from({length:n},()=>({nome:"",treinado:null,sig:null,sid:null}))}}
   }
   const d=draft;
@@ -530,7 +538,14 @@ function formHtml(it,r){
       <div class="seg"><button type="button" data-opt="${i}" data-v="true" class="yes ${o.treinado===true?"on":""}">Treinado</button><button type="button" data-opt="${i}" data-v="false" class="no ${o.treinado===false?"on":""}">Não treinado</button></div>
       <button type="button" class="btn sigbtn ${o.sig?"signed":""}" data-sig="${i}">${o.sig?(o.sig==="saved"?"Assinado ✓ (assinar de novo)":`<img src="${o.sig}" alt="Assinatura" class="sigthumb"> Assinado ✓`):"Coletar assinatura"}</button>
     </div>`).join("");
-  return`<div class="form" data-form="${esc(it.k)}">
+  const parBtn=`<button type="button" class="btn parbtn ${d.parada?"on":""}" data-act="parada">${d.parada?"Máquina parada ✓ (voltar para a ronda)":"Máquina parada? Informar motivo"}</button>`;
+  if(d.parada)return`<div class="form" data-form="${esc(it.k)}">${parBtn}
+    <div class="q"><span>Motivo da parada</span><div class="chips par">${(S.cfg.motivosParada||DEFAULT_CFG.motivosParada).map(m=>`<button type="button" data-mp="${esc(m)}" class="${d.motivoParada===m?"on":""}">${esc(m)}</button>`).join("")}</div></div>
+    <label class="f">${d.motivoParada?"Observação (opcional)":"Ou descreva o motivo"}<textarea id="fObs" placeholder="ex.: aguardando manutenção do molde">${esc(d.obs)}</textarea></label>
+    <p class="small muted" style="margin:0">Linha parada não conta como pendente nem como não conforme, e sai da cobertura da programação.</p>
+    <div class="row"><button type="button" class="btn primary" data-act="save">Salvar parada</button><button type="button" class="btn ghost" data-act="cancel">Fechar</button>${r?`<button type="button" class="btn danger" data-act="del">Apagar registro</button>`:""}</div>
+  </div>`;
+  return`<div class="form" data-form="${esc(it.k)}">${parBtn}
     <div class="q"><span>Operadores neste PN no ${turno}${it.mod&&it.mod[turno]?` <span class="muted small">(programação: ${it.mod[turno]})</span>`:""}</span><div class="ops">${ops}</div><button type="button" class="btn ghost" data-act="addop">Adicionar operador</button></div>
     <div class="q"><span>A IT está correta?</span><div class="seg">${yn("itOk",true,"Sim")}${yn("itOk",false,"Não")}</div></div>
     ${d.itOk===false?`<div class="q"><span>Motivo da IT incorreta</span><div class="chips">${S.cfg.motivos.map(m=>`<button type="button" data-m="${esc(m)}" class="${d.motivos.includes(m)?"on":""}">${esc(m)}</button>`).join("")}</div></div>`:""}
@@ -563,7 +578,7 @@ $("#rList").addEventListener("click",async e=>{
   const pnb=e.target.closest(".pn");
   if(pnb){openKey=openKey===pnb.dataset.k?null:pnb.dataset.k;draft=null;renderRonda();const f=document.querySelector(`[data-form="${CSS.escape(pnb.dataset.k)}"]`);if(f)pnb.scrollIntoView({block:"nearest"});return}
   const form=e.target.closest(".form");if(!form)return;
-  const keepText=()=>{draft.obs=$("#fObs")?.value??draft.obs;document.querySelectorAll(".opName").forEach(i=>{draft.ops[+i.dataset.op].nome=i.value})};
+  const keepText=()=>{draft.obs=$("#fObs")?.value??draft.obs;if(draft.parada)return;document.querySelectorAll(".opName").forEach(i=>{draft.ops[+i.dataset.op].nome=i.value})};
   const yn=e.target.closest("[data-f]");
   if(yn){keepText();draft[yn.dataset.f]=yn.dataset.v==="true";if(yn.dataset.f==="itOk"&&draft.itOk)draft.motivos=[];renderRonda();return}
   const opt=e.target.closest("[data-opt]");
@@ -572,15 +587,25 @@ $("#rList").addEventListener("click",async e=>{
   if(rm){keepText();draft.ops.splice(+rm.dataset.oprm,1);renderRonda();return}
   const sg=e.target.closest("[data-sig]");
   if(sg){keepText();const o=draft.ops[+sg.dataset.sig];const img=await signPad(o.nome);if(img){o.sig=img;renderRonda()}return}
+  const mp=e.target.closest("[data-mp]");
+  if(mp){keepText();draft.motivoParada=draft.motivoParada===mp.dataset.mp?"":mp.dataset.mp;renderRonda();return}
   const m=e.target.closest("[data-m]");
   if(m){keepText();const i=draft.motivos.indexOf(m.dataset.m);i>=0?draft.motivos.splice(i,1):draft.motivos.push(m.dataset.m);renderRonda();return}
   const act=e.target.closest("[data-act]");if(!act)return;
+  if(act.dataset.act==="parada"){keepText();draft.parada=!draft.parada;renderRonda();return}
   if(act.dataset.act==="addop"){keepText();draft.ops.push({nome:"",treinado:null,sig:null,sid:null});renderRonda();return}
   const date=$("#rDate").value,turno=$("#rTurno").value;const p=S.prog[date];const it=rondaItems(p,turno).find(x=>x.k===form.dataset.form);
   const id=rondaId(date,turno,it.k);
   if(act.dataset.act==="cancel"){openKey=null;draft=null;renderRonda();return}
   if(act.dataset.act==="del"){try{await del("ronda",id);toast("Registro apagado")}catch(err){toast("Não foi possível apagar ("+err.code+")")}openKey=null;draft=null;renderRonda();return}
   keepText();
+  if(draft.parada){
+    if(!draft.motivoParada&&!draft.obs.trim()){toast("Informe o motivo da parada");return}
+    const rec={date,turno,k:it.k,maq:it.maq,pn:it.pn,pns:it.pns||[it.pn],bloco:it.bloco,parada:true,motivoParada:draft.motivoParada||"Outro",obs:draft.obs.trim(),tl:leaderOf(zoneOf(it.bloco),turno),ts:Date.now()};
+    act.disabled=true;
+    try{await put("ronda",id,rec);toast("Máquina parada registrada");openKey=null;draft=null;renderRonda()}
+    catch(err){act.disabled=false;toast("Não salvou ("+(err.code||err.message)+"). Tente de novo.")}
+    return}
   if(!draft.ops.length){toast("Inclua pelo menos um operador");return}
   if(draft.ops.some(o=>!o.nome.trim())){toast("Preencha o nome de todos os operadores");return}
   if(draft.ops.some(o=>o.treinado===null)){toast("Marque se cada operador está treinado");return}
@@ -617,14 +642,17 @@ function periodLabel(){
   return fmtD(f)+" a "+fmtD(t);
 }
 function reportKind(){const p=$("#dPer").value;return(p==="mes"||p==="mesant")?"mensal":$("#dFrom").value===$("#dTo").value?"diário":"do período"}
-function filteredRonda(){
+function periodRonda(){
   const f=$("#dFrom").value,t=$("#dTo").value,tu=$("#dTurno").value;
   return Object.values(S.ronda).filter(r=>(!f||r.date>=f)&&(!t||r.date<=t)&&(!tu||r.turno===tu));
 }
+function filteredRonda(){return periodRonda().filter(r=>!r.parada)}
+function filteredParadas(){return periodRonda().filter(r=>r.parada)}
 function plannedCount(zoneId){
   const f=$("#dFrom").value,t=$("#dTo").value,tu=$("#dTurno").value;let n=0;
   Object.values(S.prog).forEach(p=>{if((f&&p.date<f)||(t&&p.date>t))return;["T1","T2","T3"].forEach(T=>{if(tu&&tu!==T)return;rondaItems(p,T).forEach(it=>{if(zoneId===undefined||zoneOf(it.bloco)===zoneId)n++})})});
-  return n;
+  n-=filteredParadas().filter(r=>zoneId===undefined||zoneOf(r.bloco)===zoneId).length;
+  return Math.max(0,n);
 }
 function inPeriod(d){const f=$("#dFrom").value,t=$("#dTo").value;return(!f||d>=f)&&(!t||d<=t)}
 const isOk=r=>r.treinado&&r.itOk;
@@ -647,21 +675,23 @@ function computeStats(){
   const mach={};nc.forEach(r=>{const k=r.maq;mach[k]=mach[k]||{n:0,z:zoneOf(r.bloco)};mach[k].n++});
   const machE=Object.entries(mach).sort((a,b)=>b[1].n-a[1].n).slice(0,8);
   const reimp=Object.values(S.reimp).filter(x=>inPeriod(x.date)).sort((a,b)=>b.ts-a.ts);
-  return{R,ops,nt,itBad,nc,semAss,planned,zs,zr,tlE,motE,machE,reimp};
+  const paradas=filteredParadas().sort((a,b)=>a.date.localeCompare(b.date)||a.turno.localeCompare(b.turno));
+  return{R,ops,nt,itBad,nc,semAss,planned,zs,zr,tlE,motE,machE,reimp,paradas};
 }
 const ntSort=(a,b)=>a.r.date.localeCompare(b.r.date)||a.r.turno.localeCompare(b.r.turno)||String(zoneOf(a.r.bloco)).localeCompare(String(zoneOf(b.r.bloco)));
 function renderDash(){
   const st=computeStats();const {R}=st;const B=$("#dBody");
   $("#dPerLabel").textContent=`Relatório ${reportKind()} · ${periodLabel()}${$("#dTurno").value?" · "+$("#dTurno").value:""}`;
   $("#dMails").textContent=(S.cfg.emails||[]).length?"Para: "+S.cfg.emails.join(", "):"Cadastre os emails do gerente e do líder de produção em Zonas e TLs.";
-  if(!R.length){B.innerHTML=`<div class="empty"><h3>Sem rondas no período</h3><p>Os indicadores aparecem assim que você registrar a primeira máquina na aba <b>Ronda</b>, ou escolha outro período acima.</p></div>`+reimpDash(st);return}
+  if(!R.length&&!st.paradas.length){B.innerHTML=`<div class="empty"><h3>Sem rondas no período</h3><p>Os indicadores aparecem assim que você registrar a primeira máquina na aba <b>Ronda</b>, ou escolha outro período acima.</p></div>`+reimpDash(st);return}
   let h=`<div class="kpis">
     <div class="kpi"><div class="v">${R.length}</div><div class="l">PNs verificados</div></div>
-    <div class="kpi"><div class="v" style="color:var(--ok)">${pct(R.length-st.nc.length,R.length)}%</div><div class="l">PNs conformes</div></div>
+    <div class="kpi"><div class="v" style="color:var(--ok)">${R.length?pct(R.length-st.nc.length,R.length)+"%":"–"}</div><div class="l">PNs conformes</div></div>
     <div class="kpi"><div class="v">${st.ops.length}</div><div class="l">Operadores verificados</div></div>
     <div class="kpi"><div class="v" style="color:var(--nc)">${st.nt.length}</div><div class="l">Operadores não treinados</div></div>
     <div class="kpi"><div class="v" style="color:var(--nc)">${st.itBad.length}</div><div class="l">ITs incorretas</div></div>
     <div class="kpi"><div class="v" style="color:var(--warn)">${st.semAss.length}</div><div class="l">Sem assinatura</div></div>
+    <div class="kpi"><div class="v" style="color:var(--muted)">${st.paradas.length}</div><div class="l">Linhas paradas</div></div>
     <div class="kpi"><div class="v">${st.planned?pct(R.length,st.planned)+"%":"–"}</div><div class="l">Cobertura da programação</div></div>
   </div>`;
   h+=`<div class="stack" style="gap:8px"><div class="row" style="justify-content:space-between"><h2>Zonas mais defasadas</h2><span class="small muted">Ordenado pela taxa de não conformidade</span></div><div class="zcards">`+
@@ -684,6 +714,9 @@ function renderDash(){
   if(dk.length>1){const dmax=Math.max(...dk.map(d=>days[d].ok+days[d].nc),1);
   h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>PNs verificados por dia</h3><div class="legend"><span style="--c:var(--ok)">Conforme</span><span style="--c:var(--nc)">Não conforme</span></div></div>
   <div class="trend">${dk.map(d=>{const o=days[d];return`<div class="d" title="${fmtD(d)}: ${o.ok} conforme, ${o.nc} não conforme"><span class="lb">${o.ok+o.nc}</span><div class="col" style="height:${(o.ok+o.nc)*90/dmax}%"><i style="height:${o.ok*100/(o.ok+o.nc)}%;background:var(--ok)"></i><i style="height:${o.nc*100/(o.ok+o.nc)}%;background:var(--nc)"></i></div><span class="lb">${d.slice(8)}/${d.slice(5,7)}</span></div>`}).join("")}</div></div>`}
+  if(st.paradas.length){const pm={};st.paradas.forEach(r=>pm[r.motivoParada]=(pm[r.motivoParada]||0)+1);
+  h+=`<div class="panel stack"><div class="row" style="justify-content:space-between"><h3>Linhas paradas na ronda (${st.paradas.length})</h3><span class="small muted">Fora da conta de conformidade e de cobertura</span></div><div class="row">${Object.entries(pm).sort((a,b)=>b[1]-a[1]).map(([m,n])=>`<span class="pill">${esc(m)}: ${n}</span>`).join("")}</div><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Motivo</th></tr></thead><tbody>`+
+    st.paradas.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td>${esc(r.motivoParada||"")}${r.obs?`<br><span class="small muted">${esc(r.obs)}</span>`:""}</td></tr>`).join("")+`</tbody></table></div></div>`}
   const its=[...st.itBad].sort((a,b)=>b.ts-a.ts);
   h+=`<div class="panel stack"><h3>ITs incorretas (${its.length})</h3>${its.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Zona / TL</th><th>Máquina</th><th>PN</th><th>Motivo</th></tr></thead><tbody>`+
     its.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(zoneById(zoneOf(r.bloco))?.name||"Sem zona")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td>${esc(r.maq)}</td><td class="mono">${esc(r.pn)}</td><td>${esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))}</td></tr>`).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Nenhuma IT incorreta no período.</p>`}</div>`;
@@ -702,13 +735,14 @@ function reportHtml(st){
   const tbl=(head,rows)=>rows.length?`<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;margin:6px 0 16px">`+`<tr>${head.map(x=>`<th ${th}>${x}</th>`).join("")}</tr>`+rows.map(r=>`<tr>${r.map(c=>`<td ${td}>${c}</td>`).join("")}</tr>`).join("")+`</table>`:`<p style="font-size:13px;color:#5d6863;margin:4px 0 16px">Nenhum registro.</p>`;
   const h2=t=>`<h3 style="font-family:Arial,sans-serif;font-size:15px;margin:18px 0 4px;color:#1d2421;text-transform:uppercase">${t}</h3>`;
   const red=t=>`<b style="color:#c43b2f">${t}</b>`;const {R}=st;
-  const kp=[["PNs verificados",R.length],["PNs conformes",(pct(R.length-st.nc.length,R.length)??0)+"%"],["Operadores verificados",st.ops.length],["Operadores não treinados",st.nt.length],["ITs incorretas",st.itBad.length],["Sem assinatura",st.semAss.length],["Cobertura da programação",st.planned?pct(R.length,st.planned)+"%":"–"]];
+  const kp=[["PNs verificados",R.length],["PNs conformes",(pct(R.length-st.nc.length,R.length)??0)+"%"],["Operadores verificados",st.ops.length],["Operadores não treinados",st.nt.length],["ITs incorretas",st.itBad.length],["Sem assinatura",st.semAss.length],["Cobertura da programação",st.planned?pct(R.length,st.planned)+"%":"–"],["Linhas paradas",st.paradas.length]];
   let h=`<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2421;max-width:900px">
   <div style="background:#1d2421;color:#fff;padding:12px 16px"><div style="font-size:20px;font-weight:bold">RONDA DE ITs · <span style="color:#e0a100">Relatório ${reportKind()}</span></div><div style="font-size:13px;opacity:.85">${periodLabel()}${$("#dTurno").value?" · "+$("#dTurno").value:" · T1, T2 e T3"}</div></div>
   <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;margin:12px 0"><tr>${kp.map(([l,v])=>`<td style="padding:8px;border:1px solid #d3d8d4;text-align:center"><div style="font-size:22px;font-weight:bold;${/não treinados|incorretas/.test(l)&&+v>0?"color:#c43b2f":""}">${v}</div><div style="font-size:11px;color:#5d6863;text-transform:uppercase">${l}</div></td>`).join("")}</tr></table>`;
   h+=h2("Zonas (da mais defasada para a menos)")+tbl(["#","Zona","Team leaders","PNs","% conforme","IT incorreta","Op. não treinados","Motivo mais comum"],st.zr.filter(s=>s.tot).map((s,i)=>[i+1,`<b>${esc(s.z.name)}</b>`,esc(leadersLine(s.z)),s.tot,pct(s.tot-s.nc,s.tot)+"%",s.it?red(s.it):0,s.nt?red(s.nt):0,esc(s.top?.[0]||"–")]));
   h+=h2("Team leaders")+tbl(["#","Team leader","Zona e turno","PNs","% conforme","IT incorreta","Op. não treinados"],st.tlE.map((o,i)=>[i+1,`<b>${esc(o.n)}</b>`,esc([...o.zt].join(", ")),o.tot,pct(o.tot-o.nc,o.tot)+"%",o.it?red(o.it):0,o.nt?red(o.nt):0]));
   h+=h2(`Operadores não treinados (${st.nt.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Operador"],[...st.nt].sort(ntSort).map(({o,r})=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),red(esc(o.nome||"Não informado"))]));
+  if(st.paradas.length)h+=h2(`Linhas paradas na ronda (${st.paradas.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Motivo"],st.paradas.map(r=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),esc([r.motivoParada,r.obs].filter(Boolean).join(" · "))]));
   h+=h2(`ITs incorretas (${st.itBad.length})`)+tbl(["Data","Turno","Zona","Team leader","Máquina","PN","Motivo"],[...st.itBad].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[fmtD(r.date),r.turno,esc(zoneById(zoneOf(r.bloco))?.name||""),esc(tlOf(r)),esc(r.maq),esc(r.pn),esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))]));
   if(st.reimp.length)h+=h2(`Reimpressões (${st.reimp.length})`)+tbl(["Data","Doc.","PN","Solicitante","Assinou","Zona / máquina","Ocorrência"],st.reimp.map(x=>[fmtD(x.date),tipoOf(x),esc(x.pn),esc(x.solicitante),x.sid?"Sim":"Não",esc((zoneById(x.zona)?.name||"–")+(x.maq?" · "+x.maq:"")),x.reincidencia?red("Reincidência "+x.ocorrencia+"ª"):"1ª"]));
   h+=`<p style="font-size:11px;color:#5d6863;margin-top:18px">Gerado pelo sistema Ronda de ITs em ${fmtDT(Date.now())}.</p></div>`;
@@ -768,7 +802,7 @@ function renderCons(){
   h+=`<div class="panel stack"><h3>Máquinas em que rodou</h3>${mk.length?`<div class="tbl-wrap"><table><thead><tr><th>Máquina</th><th class="num">Dias</th><th>Turnos</th><th>Última vez</th></tr></thead><tbody>${mk.map(([m,o])=>`<tr><td><b>${esc(m)}</b></td><td class="num">${o.dias.size}</td><td>${[...o.turnos].sort().join(", ")}</td><td>${fmtD(o.last)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted small" style="margin:0">Esse PN não aparece nas programações salvas deste período.</p>`}</div>`;
   h+=`<div class="panel stack"><h3>Operadores por turno</h3><div class="opcols">${["T1","T2","T3"].filter(T=>!tu||tu===T).map(T=>{const L=Object.values(ops[T]).sort((a,b)=>(b.treinado-a.treinado)||a.nome.localeCompare(b.nome));return`<div class="stack" style="gap:8px"><h3 style="border-bottom:2px solid var(--ink);padding-bottom:3px">${T} <span class="small muted">· ${L.filter(o=>o.treinado).length} treinados</span></h3>${L.length?L.map(o=>`<div class="opcard ${o.treinado?"":"bad"}"><div class="row" style="justify-content:space-between"><b>${esc(o.nome)}</b>${o.treinado?`<span class="pill ok">Treinado</span>`:`<span class="pill nc">Não treinado</span>`}</div><div class="small muted">Última ronda ${fmtD(o.date)} · ${esc(o.maq)}${o.vezes>1?" · "+o.vezes+" registros":""}</div>${o.sid?`<img class="sigimg" data-sid="${esc(o.sid)}" alt="Assinatura de ${esc(o.nome)}">`:`<span class="small" style="color:var(--warn)">Sem assinatura</span>`}</div>`).join(""):`<p class="small muted" style="margin:0">Nenhum operador registrado.</p>`}</div>`}).join("")}</div></div>`;
   h+=`<div class="panel stack"><h3>Histórico das rondas</h3>${R.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Turno</th><th>Máquina</th><th>Zona / TL</th><th>Operador</th><th>Treinado</th><th>Assinatura</th><th>IT</th></tr></thead><tbody>`+
-    R.flatMap(r=>opsOf(r).map((o,i)=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(r.maq)}</td><td class="small">${esc(zoneById(zoneOf(r.bloco))?.name||"")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td><b>${esc(o.nome||"Não informado")}</b></td><td>${o.treinado?`<span class="pill ok">Sim</span>`:`<span class="pill nc">Não</span>`}</td><td>${o.sid?`<img class="sigimg sm" data-sid="${esc(o.sid)}" alt="Assinatura">`:`<span class="pill warn">Sem</span>`}</td><td>${i?"":r.itOk?`<span class="pill ok">OK</span>`:`<span class="pill nc">Incorreta</span><br><span class="small muted">${esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))}</span>`}</td></tr>`)).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Nenhuma ronda registrada para este PN no período.</p>`}</div>`;
+    R.flatMap(r=>r.parada?[`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(r.maq)}</td><td class="small">${esc(zoneById(zoneOf(r.bloco))?.name||"")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td colspan="4"><span class="pill">Máquina parada</span> ${esc(r.motivoParada||"")}${r.obs?" · "+esc(r.obs):""}</td></tr>`]:opsOf(r).map((o,i)=>`<tr><td>${fmtD(r.date)}</td><td>${r.turno}</td><td>${esc(r.maq)}</td><td class="small">${esc(zoneById(zoneOf(r.bloco))?.name||"")}${tlOf(r)?" · "+esc(tlOf(r)):""}</td><td><b>${esc(o.nome||"Não informado")}</b></td><td>${o.treinado?`<span class="pill ok">Sim</span>`:`<span class="pill nc">Não</span>`}</td><td>${o.sid?`<img class="sigimg sm" data-sid="${esc(o.sid)}" alt="Assinatura">`:`<span class="pill warn">Sem</span>`}</td><td>${i?"":r.itOk?`<span class="pill ok">OK</span>`:`<span class="pill nc">Incorreta</span><br><span class="small muted">${esc([...(r.motivos||[]),r.obs].filter(Boolean).join(" · "))}</span>`}</td></tr>`)).join("")+`</tbody></table></div>`:`<p class="muted small" style="margin:0">Nenhuma ronda registrada para este PN no período.</p>`}</div>`;
   B.innerHTML=h;fillSigs(B);
   $("#cCsv")?.addEventListener("click",()=>{const rows=[["Data","Turno","Máquina","Zona","Team leader","PN","Operador","Treinado","Assinou","IT correta","Motivos"]];R.forEach(r=>opsOf(r).forEach(o=>rows.push([fmtD(r.date),r.turno,r.maq,zoneById(zoneOf(r.bloco))?.name||"",tlOf(r),r.pn,o.nome||"",o.treinado?"Sim":"Não",o.assinado?"Sim":"Não",r.itOk?"Sim":"Não",[...(r.motivos||[]),r.obs].filter(Boolean).join(" | ")])));saveCsv(rows,`consulta_${slug(pn)}.csv`)});
   $("#cPrint")?.addEventListener("click",async()=>{await fillSigs(B);const c=B.cloneNode(true);c.querySelectorAll("button").forEach(b=>b.remove());printHtml("Consulta "+pn,`<style>${document.querySelector("style").textContent}</style><div class="wrap">${c.innerHTML}</div>`)});
@@ -953,13 +987,13 @@ function renderCfg(force){
   const blocks=[...new Set([...Object.keys(c.blockMap),...Object.values(S.prog).flatMap(p=>p.blocks||[])])];
   $("#blockEdit").innerHTML=blocks.map(b=>`<label class="f">${esc(b)}<select data-block="${esc(b)}"><option value="">Sem zona</option>${c.zones.map(z=>`<option value="${esc(z.id)}" ${c.blockMap[b]===z.id?"selected":""}>${esc(z.name)}</option>`).join("")}</select></label>`).join("");
   $("#blockEdit").className="grid2";
-  if(document.activeElement!==$("#motivosEdit"))$("#motivosEdit").value=c.motivos.join("\n");if(document.activeElement!==$("#mailsEdit"))$("#mailsEdit").value=(c.emails||[]).join("\n");
+  if(document.activeElement!==$("#motivosEdit"))$("#motivosEdit").value=c.motivos.join("\n");if(document.activeElement!==$("#paradaEdit"))$("#paradaEdit").value=(c.motivosParada||DEFAULT_CFG.motivosParada).join("\n");if(document.activeElement!==$("#mailsEdit"))$("#mailsEdit").value=(c.emails||[]).join("\n");
 }
 $("#zoneEdit").addEventListener("input",e=>{const r=e.target.closest("[data-zi]");if(r){const z=cfgDraft.zones[+r.dataset.zi],f=e.target.dataset.zf;if(f==="name")z.name=e.target.value;else{z.leaders=z.leaders||{};z.leaders[f]=e.target.value}}});
 $("#blockEdit").addEventListener("change",e=>{if(e.target.dataset.block)cfgDraft.blockMap[e.target.dataset.block]=e.target.value});
 $("#addZone").addEventListener("click",()=>{const n=cfgDraft.zones.length+1;cfgDraft.zones.push({id:"z"+Date.now().toString(36),name:"Zona "+n,leaders:{}});renderCfg()});
 $("#saveCfg").addEventListener("click",async()=>{
-  cfgDraft.motivos=$("#motivosEdit").value.split("\n").map(s=>s.trim()).filter(Boolean);cfgDraft.emails=$("#mailsEdit").value.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
+  cfgDraft.motivos=$("#motivosEdit").value.split("\n").map(s=>s.trim()).filter(Boolean);cfgDraft.motivosParada=$("#paradaEdit").value.split("\n").map(s=>s.trim()).filter(Boolean);cfgDraft.emails=$("#mailsEdit").value.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
   try{await put("config","main",cfgDraft);toast("Ajustes salvos");cfgDraft=null}catch(err){toast(err.code==="invalid_argument"?"Você não tem permissão para alterar os ajustes":"Não salvou ("+(err.code||err.message)+")")}
 });
 
